@@ -1,0 +1,115 @@
+import { Button, VerticalBox, LineEdit, HorizontalBox, ListView } from "std-widgets.slint";
+
+export struct Fraction {
+    integer: int,
+    numerator: int,
+    denominator: int,
+}
+
+export struct Sector {
+    path_d_string: string,
+    active: bool,
+}
+
+export struct Pie {
+    is_integer: bool,
+    no_of_sectors: int,
+}
+
+export component AppWindow inherits Window {
+    width: root.pie_model.length < 3 ? 400px : (root.pie_model.length * 200px) + 10px;
+    min-height: 600px;
+    // max-height: 1800px;
+    title: "Leonie's Brüche Coach";
+    icon: @image-url("math.png");
+    callback display-result(Fraction);
+    // out property <Fraction> fraction: { integer: 0, numerator: 3, denominator: 4 };
+    in property <[Pie]> pie_model: [];
+    in property <[Sector]> sector_model: [];
+    VerticalLayout {
+        padding: 10px;
+        HorizontalLayout {
+            text-edit-integer := LineEdit {
+                horizontal-alignment: center;
+                padding-bottom: 5px;
+                // height: 50px;
+                font-size: 18px;
+                placeholder-text: "Ganzzahl";
+            }
+
+            VerticalLayout {
+                text-edit-numerator := LineEdit {
+                    horizontal-alignment: center;
+                    padding-bottom: 5px;
+                    height: 50px;
+                    font-size: 18px;
+                    placeholder-text: "Zähler";
+                }
+
+                Rectangle {
+                    border-color: black;
+                    height: 1px;
+                    border-width: 2px;
+                }
+
+                text-edit-denom := LineEdit {
+                    horizontal-alignment: center;
+                    padding-top: 5px;
+                    height: 50px;
+                    font-size: 18px;
+                    placeholder-text: "Nenner";
+                }
+            }
+        }
+
+        VerticalLayout {
+            Rectangle {
+                height: 40px;
+            }
+
+            Button {
+                height: 40px;
+                text: "Bruch anzeigen";
+                enabled: (text-edit-denom.text != "" && text-edit-numerator.text != "") || text-edit-integer.text != "";
+                clicked => {
+                    if self.text == "Bruch anzeigen" {
+                        self.text = "Noch einen Bruch anzeigen";
+                        root.display-result({
+                            integer: text-edit-integer.text.to-float(),
+                            numerator: text-edit-numerator.text.to-float(),
+                            denominator: text-edit-denom.text.to-float(),
+                        });
+                    } else {
+                        self.text = "Bruch anzeigen";
+                        root.display-result({
+                            integer: 0,
+                            numerator: 0,
+                            denominator: 0,
+                        });
+                        text-edit-integer.text = "";
+                        text-edit-numerator.text = "";
+                        text-edit-denom.text = "";
+                    }
+                }
+            }
+        }
+    }
+
+    for pie[p_idx] in root.pie_model: Rectangle {
+        x: (200px * p-idx) + 5px;
+        width: 100px;
+        height: 100px;
+        // border-color: black;
+            // border-width: 1px;
+        for sector[sect_idx] in pie.no_of_sectors: Path {
+            viewbox-x: -1;
+            viewbox-y: -1;
+            viewbox-height: 100;
+            viewbox-width: 100;
+            commands: sector_model[(p-idx * pie.no_of_sectors) + sect-idx].path_d_string;
+            fill: sector_model[(p-idx * pie.no_of_sectors) + sect-idx].active ? gray : lightgray;
+            stroke: pie.is-integer ? gray : white;
+            stroke-width: pie.is-integer ? 4px : 2px;
+        }
+    }
+}
