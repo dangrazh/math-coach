@@ -1,4 +1,4 @@
-import { Button, VerticalBox, LineEdit, HorizontalBox, ListView } from "std-widgets.slint";
+import { Button, CheckBox, LineEdit, Slider } from "std-widgets.slint";
 
 export struct Fraction {
     integer: int,
@@ -6,33 +6,167 @@ export struct Fraction {
     denominator: int,
 }
 
-export struct Sector {
-    path_d_string: string,
-    active: bool,
+// One filled polygon in viewbox coordinates, drawn in model order (back to front).
+export struct Shape {
+    commands: string,
+    fill: color,
+    stroke: color,
+    stroke-width: float,
 }
 
-export struct Pie {
-    is_integer: bool,
-    no_of_sectors: int,
+export enum VisualMode { pie, board, triangle, cube }
+
+component ModeButton inherits Button {
+    in property <VisualMode> value;
+    in-out property <VisualMode> current;
+    callback selected();
+    primary: self.current == self.value;
+    clicked => {
+        self.current = self.value;
+        self.selected();
+    }
+}
+
+// A labelled number field that re-renders on every edit.
+component CountField inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> placeholder;
+    in-out property <string> value;
+    callback changed();
+    spacing: 8px;
+    horizontal-stretch: 0;
+    if root.label != "": Text {
+        text: root.label;
+        vertical-alignment: center;
+    }
+    LineEdit {
+        width: 90px;
+        horizontal-alignment: center;
+        placeholder-text: root.placeholder;
+        text <=> root.value;
+        edited => { root.changed(); }
+    }
+}
+
+// "Label: ‹ text (position / count) ›" to step through a list of choices.
+component Stepper inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> text;
+    in property <int> position;
+    in property <int> count;
+    callback previous();
+    callback next();
+    spacing: 8px;
+    horizontal-stretch: 0;
+    Text {
+        text: root.label;
+        vertical-alignment: center;
+        min-width: 80px;
+    }
+    Button {
+        text: "‹";
+        width: 40px;
+        clicked => { root.previous(); }
+    }
+    Text {
+        text: "\{root.text}  (\{root.position + 1} / \{root.count})";
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        min-width: 260px;
+    }
+    Button {
+        text: "›";
+        width: 40px;
+        clicked => { root.next(); }
+    }
+}
+
+component RotationSlider inherits HorizontalLayout {
+    in property <string> label;
+    in-out property <float> angle;
+    callback rotated();
+    spacing: 8px;
+    Text {
+        text: root.label;
+        vertical-alignment: center;
+        min-width: 80px;
+    }
+    Slider {
+        minimum: 0;
+        maximum: 360;
+        value <=> root.angle;
+        changed => { root.rotated(); }
+    }
+    Text {
+        text: "\{round(root.angle)}°";
+        vertical-alignment: center;
+        horizontal-alignment: right;
+        min-width: 40px;
+    }
 }
 
 export component AppWindow inherits Window {
-    width: root.pie_model.length < 3 ? 400px : (root.pie_model.length * 200px) + 10px;
-    min-height: 600px;
-    // max-height: 1800px;
+    preferred-width: 900px;
+    preferred-height: 760px;
+    min-width: 520px;
+    min-height: 640px;
     title: "Leonie's Brüche Coach";
     icon: @image-url("math.png");
-    callback display-result(Fraction);
-    // out property <Fraction> fraction: { integer: 0, numerator: 3, denominator: 4 };
-    in property <[Pie]> pie_model: [];
-    in property <[Sector]> sector_model: [];
+
+    // Recomputes `shapes` from `fraction`, `mode` and the rotation angles.
+    callback render();
+    in-out property <Fraction> fraction: { integer: 0, numerator: 0, denominator: 0 };
+    in-out property <VisualMode> mode: VisualMode.pie;
+    in-out property <float> rot-x: 25;
+    in-out property <float> rot-z: 35;
+    in property <[Shape]> shapes: [];
+    in property <float> view-width: 240;
+    in property <float> view-height: 240;
+    in property <string> message: "";
+    // Number of elements per shape; empty means "derived from the denominator".
+    in-out property <string> pie-count: "";
+    in-out property <string> triangle-count: "";
+    in-out property <string> cube-count: "";
+    in-out property <string> board-rows: "";
+    in-out property <string> board-cols: "";
+    // Selected number of groups (an equivalent fraction); -1 = the entered denominator.
+    in-out property <int> group-choice: -1;
+    in property <int> group-position: 0;
+    in property <int> group-count: 0;
+    in property <string> group-label: "";
+    // Selected grouping of the elements; Rust wraps it into range.
+    in-out property <int> variant-index: 0;
+    in property <int> variant-count: 0;
+    in property <string> variant-label: "";
+    in property <string> summary: "";
+    // Set by Rust when groups hold more than one element; the toggles below only apply then.
+    in property <bool> grouped: false;
+    in-out property <bool> show-group-shading: true;
+    in-out property <bool> show-group-outline: true;
+
+    function reset-and-render() {
+        root.group-choice = -1;
+        root.variant-index = 0;
+        root.render();
+    }
+
+    function step-groups(delta: int) {
+        root.group-choice = root.group-position + delta;
+        root.variant-index = 0;
+        root.render();
+    }
+
+    property <bool> is-3d: root.mode == VisualMode.board || root.mode == VisualMode.cube;
+    property <float> drag-start-x;
+    property <float> drag-start-z;
+
     VerticalLayout {
         padding: 10px;
+        spacing: 8px;
+
         HorizontalLayout {
             text-edit-integer := LineEdit {
                 horizontal-alignment: center;
-                padding-bottom: 5px;
-                // height: 50px;
                 font-size: 18px;
                 placeholder-text: "Ganzzahl";
             }
@@ -40,7 +174,6 @@ export component AppWindow inherits Window {
             VerticalLayout {
                 text-edit-numerator := LineEdit {
                     horizontal-alignment: center;
-                    padding-bottom: 5px;
                     height: 50px;
                     font-size: 18px;
                     placeholder-text: "Zähler";
@@ -54,7 +187,6 @@ export component AppWindow inherits Window {
 
                 text-edit-denom := LineEdit {
                     horizontal-alignment: center;
-                    padding-top: 5px;
                     height: 50px;
                     font-size: 18px;
                     placeholder-text: "Nenner";
@@ -62,54 +194,223 @@ export component AppWindow inherits Window {
             }
         }
 
-        VerticalLayout {
-            Rectangle {
-                height: 40px;
-            }
-
-            Button {
-                height: 40px;
-                text: "Bruch anzeigen";
-                enabled: (text-edit-denom.text != "" && text-edit-numerator.text != "") || text-edit-integer.text != "";
-                clicked => {
-                    if self.text == "Bruch anzeigen" {
-                        self.text = "Noch einen Bruch anzeigen";
-                        root.display-result({
-                            integer: text-edit-integer.text.to-float(),
-                            numerator: text-edit-numerator.text.to-float(),
-                            denominator: text-edit-denom.text.to-float(),
-                        });
-                    } else {
-                        self.text = "Bruch anzeigen";
-                        root.display-result({
-                            integer: 0,
-                            numerator: 0,
-                            denominator: 0,
-                        });
-                        text-edit-integer.text = "";
-                        text-edit-numerator.text = "";
-                        text-edit-denom.text = "";
-                    }
+        Button {
+            height: 40px;
+            text: "Bruch anzeigen";
+            enabled: (text-edit-denom.text != "" && text-edit-numerator.text != "") || text-edit-integer.text != "";
+            clicked => {
+                if self.text == "Bruch anzeigen" {
+                    self.text = "Noch einen Bruch anzeigen";
+                    root.fraction = {
+                        integer: text-edit-integer.text.to-float(),
+                        numerator: text-edit-numerator.text.to-float(),
+                        denominator: text-edit-denom.text.to-float(),
+                    };
+                } else {
+                    self.text = "Bruch anzeigen";
+                    root.fraction = { integer: 0, numerator: 0, denominator: 0 };
+                    text-edit-integer.text = "";
+                    text-edit-numerator.text = "";
+                    text-edit-denom.text = "";
                 }
+                root.reset-and-render();
             }
         }
-    }
 
-    for pie[p_idx] in root.pie_model: Rectangle {
-        x: (200px * p-idx) + 5px;
-        width: 100px;
-        height: 100px;
-        // border-color: black;
-            // border-width: 1px;
-        for sector[sect_idx] in pie.no_of_sectors: Path {
-            viewbox-x: -1;
-            viewbox-y: -1;
-            viewbox-height: 100;
-            viewbox-width: 100;
-            commands: sector_model[(p-idx * pie.no_of_sectors) + sect-idx].path_d_string;
-            fill: sector_model[(p-idx * pie.no_of_sectors) + sect-idx].active ? gray : lightgray;
-            stroke: pie.is-integer ? gray : white;
-            stroke-width: pie.is-integer ? 4px : 2px;
+        HorizontalLayout {
+            spacing: 6px;
+            ModeButton {
+                text: "Kreis";
+                value: VisualMode.pie;
+                current <=> root.mode;
+                selected => { root.reset-and-render(); }
+            }
+            ModeButton {
+                text: "Brett (3D)";
+                value: VisualMode.board;
+                current <=> root.mode;
+                selected => { root.reset-and-render(); }
+            }
+            ModeButton {
+                text: "Dreieck";
+                value: VisualMode.triangle;
+                current <=> root.mode;
+                selected => { root.reset-and-render(); }
+            }
+            ModeButton {
+                text: "Würfel (3D)";
+                value: VisualMode.cube;
+                current <=> root.mode;
+                selected => { root.reset-and-render(); }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 16px;
+            height: 34px;
+            if root.mode == VisualMode.pie: CountField {
+                label: "Anzahl Sektoren:";
+                placeholder: "= Nenner";
+                value <=> root.pie-count;
+                changed => { root.reset-and-render(); }
+            }
+            if root.mode == VisualMode.triangle: CountField {
+                label: "Anzahl Dreiecke:";
+                placeholder: "automatisch";
+                value <=> root.triangle-count;
+                changed => { root.reset-and-render(); }
+            }
+            if root.mode == VisualMode.cube: CountField {
+                label: "Anzahl Würfel:";
+                placeholder: "= Nenner";
+                value <=> root.cube-count;
+                changed => { root.reset-and-render(); }
+            }
+            if root.mode == VisualMode.board: HorizontalLayout {
+                spacing: 8px;
+                horizontal-stretch: 0;
+                CountField {
+                    label: "Brett:";
+                    placeholder: "Zeilen";
+                    value <=> root.board-rows;
+                    changed => { root.reset-and-render(); }
+                }
+                Text {
+                    text: "×";
+                    vertical-alignment: center;
+                }
+                CountField {
+                    placeholder: "Spalten";
+                    value <=> root.board-cols;
+                    changed => { root.reset-and-render(); }
+                }
+            }
+            Text {
+                text: root.summary;
+                color: #64748b;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+        }
+
+        if root.group-count > 1 || root.grouped: HorizontalLayout {
+            spacing: 8px;
+            height: 34px;
+            if root.group-count > 1: Stepper {
+                label: "Gruppen:";
+                text: root.group-label;
+                position: root.group-position;
+                count: root.group-count;
+                previous => { root.step-groups(-1); }
+                next => { root.step-groups(1); }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            if root.grouped: CheckBox {
+                text: "Gruppen einfärben";
+                checked <=> root.show-group-shading;
+                toggled => { root.render(); }
+            }
+            if root.grouped: CheckBox {
+                text: "Gruppen umranden";
+                checked <=> root.show-group-outline;
+                toggled => { root.render(); }
+            }
+        }
+
+        if root.grouped && root.variant-count > 1: HorizontalLayout {
+            height: 34px;
+            Stepper {
+                label: "Aufteilung:";
+                text: root.variant-label;
+                position: root.variant-index;
+                count: root.variant-count;
+                previous => {
+                    root.variant-index -= 1;
+                    root.render();
+                }
+                next => {
+                    root.variant-index += 1;
+                    root.render();
+                }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+        }
+
+        if root.is-3d: VerticalLayout {
+            spacing: 4px;
+            RotationSlider {
+                label: "Drehung X";
+                angle <=> root.rot-x;
+                rotated => { root.render(); }
+            }
+            RotationSlider {
+                label: "Drehung Z";
+                angle <=> root.rot-z;
+                rotated => { root.render(); }
+            }
+            Text {
+                text: "Tipp: Mit der Maus auf der Zeichnung ziehen, um sie zu drehen.";
+                color: #64748b;
+                font-size: 12px;
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            min-height: 240px;
+
+            Rectangle {
+                width: min(parent.width, parent.height * root.view-width / root.view-height);
+                height: self.width * root.view-height / root.view-width;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+
+                for shape in root.shapes: Path {
+                    x: 0;
+                    y: 0;
+                    width: parent.width;
+                    height: parent.height;
+                    viewbox-x: 0;
+                    viewbox-y: 0;
+                    viewbox-width: root.view-width;
+                    viewbox-height: root.view-height;
+                    commands: shape.commands;
+                    fill: shape.fill;
+                    stroke: shape.stroke;
+                    stroke-width: shape.stroke-width * 1px;
+                }
+            }
+
+            if root.message != "": Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.message;
+                color: #b91c1c;
+                font-size: 18px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            // Dragging horizontally spins around Z, vertically tilts around X.
+            TouchArea {
+                enabled: root.is-3d;
+                mouse-cursor: root.is-3d ? MouseCursor.move : MouseCursor.default;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down {
+                        root.drag-start-x = root.rot-x;
+                        root.drag-start-z = root.rot-z;
+                    }
+                }
+                moved => {
+                    root.rot-z = root.drag-start-z + (self.mouse-x - self.pressed-x) / 1px * 0.5;
+                    root.rot-x = root.drag-start-x + (self.mouse-y - self.pressed-y) / 1px * 0.5;
+                    root.render();
+                }
+            }
         }
     }
 }
