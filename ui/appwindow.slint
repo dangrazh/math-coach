@@ -1,4 +1,9 @@
 import { Button, CheckBox, LineEdit, Slider } from "std-widgets.slint";
+import { AlgebraMode, AlgebraScreen, AlgebraStep, AlgebraTab, AlgebraToken, Solution } from "algebra.slint";
+
+export { AlgebraMode, AlgebraStep, AlgebraToken, Solution }
+
+export enum Screen { menu, fractions, algebra }
 
 export struct Fraction {
     integer: int,
@@ -81,6 +86,55 @@ component Stepper inherits HorizontalLayout {
     }
 }
 
+component MenuCard inherits Rectangle {
+    in property <string> symbol;
+    in property <string> title;
+    in property <string> subtitle;
+    callback clicked();
+    min-height: 200px;
+    border-radius: 16px;
+    border-width: 2px;
+    border-color: #93c5fd;
+    background: touch.has-hover ? #dbeafe : #eff6ff;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 8px;
+        alignment: center;
+        Text {
+            text: root.symbol;
+            color: #1e3a8a;
+            font-size: 48px;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.title;
+            color: #1e3a8a;
+            font-size: 24px;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: root.subtitle;
+            color: #334155;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+component BackButton inherits Button {
+    text: "← Menü";
+    width: 110px;
+}
+
 component RotationSlider inherits HorizontalLayout {
     in property <string> label;
     in-out property <float> angle;
@@ -110,8 +164,21 @@ export component AppWindow inherits Window {
     preferred-height: 760px;
     min-width: 520px;
     min-height: 640px;
-    title: "Leonie's Brüche Coach";
+    title: "Leonie's Mathe Coach";
     icon: @image-url("math.png");
+
+    in-out property <Screen> screen: Screen.menu;
+    in-out property <AlgebraMode> algebra-mode: AlgebraMode.simplify;
+    // Returns the first `revealed` solution steps for the input (see `Solution`).
+    callback algebra-solve(AlgebraMode, string, int) -> Solution;
+    callback algebra-example(AlgebraMode, int) -> string;
+
+    public function scroll-algebra-to-end() {
+        simplify-screen.scroll-to-end();
+        expand-screen.scroll-to-end();
+        factor-screen.scroll-to-end();
+        solve-screen.scroll-to-end();
+    }
 
     // Recomputes `shapes` from `fraction`, `mode` and the rotation angles.
     callback render();
@@ -160,255 +227,417 @@ export component AppWindow inherits Window {
     property <float> drag-start-x;
     property <float> drag-start-z;
 
-    VerticalLayout {
-        padding: 10px;
-        spacing: 8px;
-
-        HorizontalLayout {
-            text-edit-integer := LineEdit {
+    if root.screen == Screen.menu: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        VerticalLayout {
+            padding: 30px;
+            spacing: 24px;
+            alignment: center;
+            Text {
+                text: "Leonie's Mathe Coach";
+                font-size: 32px;
+                font-weight: 700;
                 horizontal-alignment: center;
-                font-size: 18px;
-                placeholder-text: "Ganzzahl";
-            }
-
-            VerticalLayout {
-                text-edit-numerator := LineEdit {
-                    horizontal-alignment: center;
-                    height: 50px;
-                    font-size: 18px;
-                    placeholder-text: "Zähler";
-                }
-
-                Rectangle {
-                    border-color: black;
-                    height: 1px;
-                    border-width: 2px;
-                }
-
-                text-edit-denom := LineEdit {
-                    horizontal-alignment: center;
-                    height: 50px;
-                    font-size: 18px;
-                    placeholder-text: "Nenner";
-                }
-            }
-        }
-
-        Button {
-            height: 40px;
-            text: "Bruch anzeigen";
-            enabled: (text-edit-denom.text != "" && text-edit-numerator.text != "") || text-edit-integer.text != "";
-            clicked => {
-                if self.text == "Bruch anzeigen" {
-                    self.text = "Noch einen Bruch anzeigen";
-                    root.fraction = {
-                        integer: text-edit-integer.text.to-float(),
-                        numerator: text-edit-numerator.text.to-float(),
-                        denominator: text-edit-denom.text.to-float(),
-                    };
-                } else {
-                    self.text = "Bruch anzeigen";
-                    root.fraction = { integer: 0, numerator: 0, denominator: 0 };
-                    text-edit-integer.text = "";
-                    text-edit-numerator.text = "";
-                    text-edit-denom.text = "";
-                }
-                root.reset-and-render();
-            }
-        }
-
-        HorizontalLayout {
-            spacing: 6px;
-            ModeButton {
-                text: "Kreis";
-                value: VisualMode.pie;
-                current <=> root.mode;
-                selected => { root.reset-and-render(); }
-            }
-            ModeButton {
-                text: "Brett (3D)";
-                value: VisualMode.board;
-                current <=> root.mode;
-                selected => { root.reset-and-render(); }
-            }
-            ModeButton {
-                text: "Dreieck";
-                value: VisualMode.triangle;
-                current <=> root.mode;
-                selected => { root.reset-and-render(); }
-            }
-            ModeButton {
-                text: "Würfel (3D)";
-                value: VisualMode.cube;
-                current <=> root.mode;
-                selected => { root.reset-and-render(); }
-            }
-        }
-
-        HorizontalLayout {
-            spacing: 16px;
-            height: 34px;
-            if root.mode == VisualMode.pie: CountField {
-                label: "Anzahl Sektoren:";
-                placeholder: "= Nenner";
-                value <=> root.pie-count;
-                changed => { root.reset-and-render(); }
-            }
-            if root.mode == VisualMode.triangle: CountField {
-                label: "Anzahl Dreiecke:";
-                placeholder: "automatisch";
-                value <=> root.triangle-count;
-                changed => { root.reset-and-render(); }
-            }
-            if root.mode == VisualMode.cube: CountField {
-                label: "Anzahl Würfel:";
-                placeholder: "= Nenner";
-                value <=> root.cube-count;
-                changed => { root.reset-and-render(); }
-            }
-            if root.mode == VisualMode.board: HorizontalLayout {
-                spacing: 8px;
-                horizontal-stretch: 0;
-                CountField {
-                    label: "Brett:";
-                    placeholder: "Zeilen";
-                    value <=> root.board-rows;
-                    changed => { root.reset-and-render(); }
-                }
-                Text {
-                    text: "×";
-                    vertical-alignment: center;
-                }
-                CountField {
-                    placeholder: "Spalten";
-                    value <=> root.board-cols;
-                    changed => { root.reset-and-render(); }
-                }
             }
             Text {
-                text: root.summary;
-                color: #64748b;
-                vertical-alignment: center;
-                horizontal-stretch: 1;
-            }
-        }
-
-        if root.group-count > 1 || root.grouped: HorizontalLayout {
-            spacing: 8px;
-            height: 34px;
-            if root.group-count > 1: Stepper {
-                label: "Gruppen:";
-                text: root.group-label;
-                position: root.group-position;
-                count: root.group-count;
-                previous => { root.step-groups(-1); }
-                next => { root.step-groups(1); }
-            }
-            Rectangle {
-                horizontal-stretch: 1;
-            }
-            if root.grouped: CheckBox {
-                text: "Gruppen einfärben";
-                checked <=> root.show-group-shading;
-                toggled => { root.render(); }
-            }
-            if root.grouped: CheckBox {
-                text: "Gruppen umranden";
-                checked <=> root.show-group-outline;
-                toggled => { root.render(); }
-            }
-        }
-
-        if root.grouped && root.variant-count > 1: HorizontalLayout {
-            height: 34px;
-            Stepper {
-                label: "Aufteilung:";
-                text: root.variant-label;
-                position: root.variant-index;
-                count: root.variant-count;
-                previous => {
-                    root.variant-index -= 1;
-                    root.render();
-                }
-                next => {
-                    root.variant-index += 1;
-                    root.render();
-                }
-            }
-            Rectangle {
-                horizontal-stretch: 1;
-            }
-        }
-
-        if root.is-3d: VerticalLayout {
-            spacing: 4px;
-            RotationSlider {
-                label: "Drehung X";
-                angle <=> root.rot-x;
-                rotated => { root.render(); }
-            }
-            RotationSlider {
-                label: "Drehung Z";
-                angle <=> root.rot-z;
-                rotated => { root.render(); }
-            }
-            Text {
-                text: "Tipp: Mit der Maus auf der Zeichnung ziehen, um sie zu drehen.";
-                color: #64748b;
-                font-size: 12px;
-            }
-        }
-
-        Rectangle {
-            vertical-stretch: 1;
-            min-height: 240px;
-
-            Rectangle {
-                width: min(parent.width, parent.height * root.view-width / root.view-height);
-                height: self.width * root.view-height / root.view-width;
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
-
-                for shape in root.shapes: Path {
-                    x: 0;
-                    y: 0;
-                    width: parent.width;
-                    height: parent.height;
-                    viewbox-x: 0;
-                    viewbox-y: 0;
-                    viewbox-width: root.view-width;
-                    viewbox-height: root.view-height;
-                    commands: shape.commands;
-                    fill: shape.fill;
-                    stroke: shape.stroke;
-                    stroke-width: shape.stroke-width * 1px;
-                }
-            }
-
-            if root.message != "": Text {
-                width: parent.width;
-                height: parent.height;
-                text: root.message;
-                color: #b91c1c;
+                text: "Was möchtest du heute üben?";
                 font-size: 18px;
                 horizontal-alignment: center;
-                vertical-alignment: center;
             }
-
-            // Dragging horizontally spins around Z, vertically tilts around X.
-            TouchArea {
-                enabled: root.is-3d;
-                mouse-cursor: root.is-3d ? MouseCursor.move : MouseCursor.default;
-                pointer-event(event) => {
-                    if event.kind == PointerEventKind.down {
-                        root.drag-start-x = root.rot-x;
-                        root.drag-start-z = root.rot-z;
+            HorizontalLayout {
+                spacing: 24px;
+                MenuCard {
+                    symbol: "½";
+                    title: "Brüche";
+                    // Half of the padded width minus the spacing.
+                    width: (root.width - 84px) / 2;
+                    subtitle: "Brüche als Kreis, Brett, Dreieck oder Würfel darstellen";
+                    clicked => {
+                        root.screen = Screen.fractions;
                     }
                 }
-                moved => {
-                    root.rot-z = root.drag-start-z + (self.mouse-x - self.pressed-x) / 1px * 0.5;
-                    root.rot-x = root.drag-start-x + (self.mouse-y - self.pressed-y) / 1px * 0.5;
-                    root.render();
+                MenuCard {
+                    symbol: "x =";
+                    title: "Terme & Gleichungen";
+                    // Half of the padded width minus the spacing.
+                    width: (root.width - 84px) / 2;
+                    subtitle: "Vereinfachen, ausmultiplizieren, ausklammern und Gleichungen lösen – Schritt für Schritt";
+                    clicked => {
+                        root.screen = Screen.algebra;
+                    }
+                }
+            }
+        }
+    }
+
+    // Hidden instead of removed, so that each screen keeps its inputs.
+    Rectangle {
+        visible: root.screen == Screen.algebra;
+        width: parent.width;
+        height: parent.height;
+        VerticalLayout {
+            padding: 10px;
+            spacing: 8px;
+            HorizontalLayout {
+                spacing: 6px;
+                BackButton {
+                    clicked => {
+                        root.screen = Screen.menu;
+                    }
+                }
+                AlgebraTab {
+                    text: "Vereinfachen";
+                    value: AlgebraMode.simplify;
+                    current <=> root.algebra-mode;
+                }
+                AlgebraTab {
+                    text: "Ausmultiplizieren";
+                    value: AlgebraMode.expand;
+                    current <=> root.algebra-mode;
+                }
+                AlgebraTab {
+                    text: "Ausklammern";
+                    value: AlgebraMode.factor;
+                    current <=> root.algebra-mode;
+                }
+                AlgebraTab {
+                    text: "Gleichungen lösen";
+                    value: AlgebraMode.solve;
+                    current <=> root.algebra-mode;
+                }
+            }
+            Rectangle {
+                vertical-stretch: 1;
+                simplify-screen := AlgebraScreen {
+                    visible: root.algebra-mode == AlgebraMode.simplify;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.simplify;
+                    intro: "Gleichartige Terme zusammenfassen, z. B. 3x + 2y − 5x + 4. Schreibe Produkte mit * oder ·, Hochzahlen mit ^ oder ².";
+                    placeholder: "Term eingeben, z. B. 3x + 2y - 5x + 4";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                expand-screen := AlgebraScreen {
+                    visible: root.algebra-mode == AlgebraMode.expand;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.expand;
+                    intro: "Klammern auflösen und ausmultiplizieren, z. B. −2(a − 4b) oder (x + 3)(x − 2).";
+                    placeholder: "Term mit Klammern eingeben, z. B. (x + 3)(x - 2)";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                factor-screen := AlgebraScreen {
+                    visible: root.algebra-mode == AlgebraMode.factor;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.factor;
+                    intro: "Den grössten gemeinsamen Faktor ausklammern, z. B. 4x² − 8x = 4x(x − 2).";
+                    placeholder: "Summe eingeben, z. B. 4x^2 - 8x";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                solve-screen := AlgebraScreen {
+                    visible: root.algebra-mode == AlgebraMode.solve;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.solve;
+                    intro: "Lineare und quadratische Gleichungen mit einer Variablen lösen, z. B. 3(x − 2) + 4 = 2x − 5 oder x² − 5x + 6 = 0.";
+                    placeholder: "Gleichung eingeben, z. B. 5x - 7 = 2x + 8";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        visible: root.screen == Screen.fractions;
+        width: parent.width;
+        height: parent.height;
+        VerticalLayout {
+            padding: 10px;
+            spacing: 8px;
+
+            HorizontalLayout {
+                spacing: 12px;
+                BackButton {
+                    clicked => {
+                        root.screen = Screen.menu;
+                    }
+                }
+                Text {
+                    text: "Brüche";
+                    font-size: 20px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+            }
+
+            HorizontalLayout {
+                text-edit-integer := LineEdit {
+                    horizontal-alignment: center;
+                    font-size: 18px;
+                    placeholder-text: "Ganzzahl";
+                }
+
+                VerticalLayout {
+                    text-edit-numerator := LineEdit {
+                        horizontal-alignment: center;
+                        height: 50px;
+                        font-size: 18px;
+                        placeholder-text: "Zähler";
+                    }
+
+                    Rectangle {
+                        border-color: black;
+                        height: 1px;
+                        border-width: 2px;
+                    }
+
+                    text-edit-denom := LineEdit {
+                        horizontal-alignment: center;
+                        height: 50px;
+                        font-size: 18px;
+                        placeholder-text: "Nenner";
+                    }
+                }
+            }
+
+            Button {
+                height: 40px;
+                text: "Bruch anzeigen";
+                enabled: (text-edit-denom.text != "" && text-edit-numerator.text != "") || text-edit-integer.text != "";
+                clicked => {
+                    if self.text == "Bruch anzeigen" {
+                        self.text = "Noch einen Bruch anzeigen";
+                        root.fraction = {
+                            integer: text-edit-integer.text.to-float(),
+                            numerator: text-edit-numerator.text.to-float(),
+                            denominator: text-edit-denom.text.to-float(),
+                        };
+                    } else {
+                        self.text = "Bruch anzeigen";
+                        root.fraction = { integer: 0, numerator: 0, denominator: 0 };
+                        text-edit-integer.text = "";
+                        text-edit-numerator.text = "";
+                        text-edit-denom.text = "";
+                    }
+                    root.reset-and-render();
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                ModeButton {
+                    text: "Kreis";
+                    value: VisualMode.pie;
+                    current <=> root.mode;
+                    selected => { root.reset-and-render(); }
+                }
+                ModeButton {
+                    text: "Brett (3D)";
+                    value: VisualMode.board;
+                    current <=> root.mode;
+                    selected => { root.reset-and-render(); }
+                }
+                ModeButton {
+                    text: "Dreieck";
+                    value: VisualMode.triangle;
+                    current <=> root.mode;
+                    selected => { root.reset-and-render(); }
+                }
+                ModeButton {
+                    text: "Würfel (3D)";
+                    value: VisualMode.cube;
+                    current <=> root.mode;
+                    selected => { root.reset-and-render(); }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 16px;
+                height: 34px;
+                if root.mode == VisualMode.pie: CountField {
+                    label: "Anzahl Sektoren:";
+                    placeholder: "= Nenner";
+                    value <=> root.pie-count;
+                    changed => { root.reset-and-render(); }
+                }
+                if root.mode == VisualMode.triangle: CountField {
+                    label: "Anzahl Dreiecke:";
+                    placeholder: "automatisch";
+                    value <=> root.triangle-count;
+                    changed => { root.reset-and-render(); }
+                }
+                if root.mode == VisualMode.cube: CountField {
+                    label: "Anzahl Würfel:";
+                    placeholder: "= Nenner";
+                    value <=> root.cube-count;
+                    changed => { root.reset-and-render(); }
+                }
+                if root.mode == VisualMode.board: HorizontalLayout {
+                    spacing: 8px;
+                    horizontal-stretch: 0;
+                    CountField {
+                        label: "Brett:";
+                        placeholder: "Zeilen";
+                        value <=> root.board-rows;
+                        changed => { root.reset-and-render(); }
+                    }
+                    Text {
+                        text: "×";
+                        vertical-alignment: center;
+                    }
+                    CountField {
+                        placeholder: "Spalten";
+                        value <=> root.board-cols;
+                        changed => { root.reset-and-render(); }
+                    }
+                }
+                Text {
+                    text: root.summary;
+                    color: #64748b;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+            }
+
+            if root.group-count > 1 || root.grouped: HorizontalLayout {
+                spacing: 8px;
+                height: 34px;
+                if root.group-count > 1: Stepper {
+                    label: "Gruppen:";
+                    text: root.group-label;
+                    position: root.group-position;
+                    count: root.group-count;
+                    previous => { root.step-groups(-1); }
+                    next => { root.step-groups(1); }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                if root.grouped: CheckBox {
+                    text: "Gruppen einfärben";
+                    checked <=> root.show-group-shading;
+                    toggled => { root.render(); }
+                }
+                if root.grouped: CheckBox {
+                    text: "Gruppen umranden";
+                    checked <=> root.show-group-outline;
+                    toggled => { root.render(); }
+                }
+            }
+
+            if root.grouped && root.variant-count > 1: HorizontalLayout {
+                height: 34px;
+                Stepper {
+                    label: "Aufteilung:";
+                    text: root.variant-label;
+                    position: root.variant-index;
+                    count: root.variant-count;
+                    previous => {
+                        root.variant-index -= 1;
+                        root.render();
+                    }
+                    next => {
+                        root.variant-index += 1;
+                        root.render();
+                    }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+            }
+
+            if root.is-3d: VerticalLayout {
+                spacing: 4px;
+                RotationSlider {
+                    label: "Drehung X";
+                    angle <=> root.rot-x;
+                    rotated => { root.render(); }
+                }
+                RotationSlider {
+                    label: "Drehung Z";
+                    angle <=> root.rot-z;
+                    rotated => { root.render(); }
+                }
+                Text {
+                    text: "Tipp: Mit der Maus auf der Zeichnung ziehen, um sie zu drehen.";
+                    color: #64748b;
+                    font-size: 12px;
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                min-height: 240px;
+
+                Rectangle {
+                    width: min(parent.width, parent.height * root.view-width / root.view-height);
+                    height: self.width * root.view-height / root.view-width;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+
+                    for shape in root.shapes: Path {
+                        x: 0;
+                        y: 0;
+                        width: parent.width;
+                        height: parent.height;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: root.view-width;
+                        viewbox-height: root.view-height;
+                        commands: shape.commands;
+                        fill: shape.fill;
+                        stroke: shape.stroke;
+                        stroke-width: shape.stroke-width * 1px;
+                    }
+                }
+
+                if root.message != "": Text {
+                    width: parent.width;
+                    height: parent.height;
+                    text: root.message;
+                    color: #b91c1c;
+                    font-size: 18px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                // Dragging horizontally spins around Z, vertically tilts around X.
+                TouchArea {
+                    enabled: root.is-3d;
+                    mouse-cursor: root.is-3d ? MouseCursor.move : MouseCursor.default;
+                    pointer-event(event) => {
+                        if event.kind == PointerEventKind.down {
+                            root.drag-start-x = root.rot-x;
+                            root.drag-start-z = root.rot-z;
+                        }
+                    }
+                    moved => {
+                        root.rot-z = root.drag-start-z + (self.mouse-x - self.pressed-x) / 1px * 0.5;
+                        root.rot-x = root.drag-start-x + (self.mouse-y - self.pressed-y) / 1px * 0.5;
+                        root.render();
+                    }
                 }
             }
         }

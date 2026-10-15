@@ -1,0 +1,242 @@
+import { Button, LineEdit, ListView } from "std-widgets.slint";
+
+// One piece of an expression; a non-empty denominator draws `text` as a stacked fraction.
+export struct AlgebraToken {
+    text: string,
+    denominator: string,
+    underline: color,
+    highlight: bool,
+}
+
+export struct AlgebraStep {
+    title: string,
+    explanation: string,
+    hint: string,
+    tokens: [AlgebraToken],
+    operation: string,
+}
+
+// The first `revealed` steps of a calculation, the total number of steps, or an error.
+export struct Solution {
+    steps: [AlgebraStep],
+    total: int,
+    message: string,
+}
+
+export enum AlgebraMode { simplify, expand, factor, solve }
+
+export component AlgebraTab inherits Button {
+    in property <AlgebraMode> value;
+    in-out property <AlgebraMode> current;
+    primary: self.current == self.value;
+    clicked => {
+        self.current = self.value;
+    }
+}
+
+component TokenView inherits Rectangle {
+    in property <AlgebraToken> token;
+    background: root.token.highlight ? #fde68a : transparent;
+    border-radius: 3px;
+
+    VerticalLayout {
+        spacing: 1px;
+        if root.token.denominator == "": Text {
+            text: root.token.text;
+            color: #0f172a;
+            font-size: 22px;
+            vertical-alignment: center;
+            vertical-stretch: 1;
+        }
+        if root.token.denominator != "": VerticalLayout {
+            alignment: center;
+            vertical-stretch: 1;
+            padding-left: 2px;
+            padding-right: 2px;
+            Text {
+                text: root.token.text;
+                color: #0f172a;
+                font-size: 15px;
+                horizontal-alignment: center;
+            }
+            Rectangle {
+                height: 1.5px;
+                background: #0f172a;
+            }
+            Text {
+                text: root.token.denominator;
+                color: #0f172a;
+                font-size: 15px;
+                horizontal-alignment: center;
+            }
+        }
+        Rectangle {
+            height: 3px;
+            background: root.token.underline;
+        }
+    }
+}
+
+component StepCard inherits Rectangle {
+    in property <AlgebraStep> step;
+    in property <int> number;
+    background: #f1f5f9;
+    border-radius: 8px;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 6px;
+        Text {
+            text: "\{root.number}. \{root.step.title}";
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        if root.step.explanation != "": Text {
+            text: root.step.explanation;
+            color: #334155;
+            font-size: 14px;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            alignment: start;
+            for token in root.step.tokens: TokenView {
+                token: token;
+            }
+            if root.step.operation != "": Text {
+                text: "        " + root.step.operation;
+                color: #7c3aed;
+                font-size: 20px;
+                vertical-alignment: center;
+            }
+        }
+        if root.step.hint != "": Rectangle {
+            background: #fef3c7;
+            border-radius: 6px;
+            HorizontalLayout {
+                padding: 8px;
+                Text {
+                    text: root.step.hint;
+                    color: #78350f;
+                    font-size: 14px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}
+
+// Input field plus the growing list of solution steps; the same for all four modes.
+export component AlgebraScreen inherits Rectangle {
+    in property <AlgebraMode> mode;
+    in property <string> intro;
+    in property <string> placeholder;
+    callback solve(AlgebraMode, string, int) -> Solution;
+    callback example(AlgebraMode, int) -> string;
+
+    property <int> revealed: 0;
+    property <int> example-index: 0;
+    property <Solution> solution;
+    property <bool> finished: root.revealed > 0 && root.solution.message == "" && root.revealed >= root.solution.total;
+
+    function refresh() {
+        root.solution = root.solve(root.mode, input.text, root.revealed);
+        if root.solution.message != "" {
+            root.revealed = 0;
+        }
+    }
+
+    // Called (deferred) after new steps were laid out, to show the newest one.
+    public function scroll-to-end() {
+        list.viewport-y = min(0px, list.visible-height - list.viewport-height);
+    }
+
+    function reset() {
+        root.revealed = 0;
+        root.solution = { steps: [], total: 0, message: "" };
+    }
+
+    function advance() {
+        if input.text != "" && !root.finished {
+            root.revealed += 1;
+            root.refresh();
+        }
+    }
+
+    VerticalLayout {
+        spacing: 8px;
+
+        Text {
+            text: root.intro;
+            wrap: word-wrap;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            input := LineEdit {
+                font-size: 20px;
+                placeholder-text: root.placeholder;
+                edited => {
+                    root.reset();
+                }
+                accepted => {
+                    root.advance();
+                }
+            }
+            Button {
+                text: "Beispiel";
+                clicked => {
+                    input.text = root.example(root.mode, root.example-index);
+                    root.example-index += 1;
+                    root.reset();
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: root.revealed == 0 ? "Los geht's" : root.finished ? "Fertig ✓" : "Nächster Schritt";
+                primary: true;
+                enabled: input.text != "" && !root.finished;
+                clicked => {
+                    root.advance();
+                }
+            }
+            Button {
+                text: "Alle Schritte";
+                enabled: input.text != "" && !root.finished;
+                clicked => {
+                    root.revealed = 1000;
+                    root.refresh();
+                }
+            }
+            Button {
+                text: "Neu";
+                clicked => {
+                    input.text = "";
+                    root.reset();
+                    input.focus();
+                }
+            }
+        }
+
+        if root.solution.message != "": Text {
+            text: root.solution.message;
+            color: #b91c1c;
+            font-size: 16px;
+            wrap: word-wrap;
+        }
+
+        list := ListView {
+            vertical-stretch: 1;
+            for step[index] in root.solution.steps: VerticalLayout {
+                padding-bottom: 8px;
+                StepCard {
+                    step: step;
+                    number: index + 1;
+                }
+            }
+        }
+    }
+}

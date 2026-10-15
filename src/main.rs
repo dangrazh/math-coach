@@ -1,16 +1,78 @@
 #![windows_subsystem = "windows"]
 
+mod algebra;
 mod fraction;
 mod visual;
 
 use std::rc::Rc;
+use std::time::Duration;
 
-use slint::{SharedString, VecModel};
+use slint::{Color, ModelRc, SharedString, Timer, VecModel};
 
+use algebra::Glyph;
 use fraction::MixedFraction;
 use visual::{Elements, GroupDisplay, Scene, Selection, View};
 
 slint::include_modules!();
+
+/// Underline colours for the algebra steps, in the order of `algebra`'s colour names.
+const MARKERS: [(u8, u8, u8); algebra::COLOR_COUNT] =
+    [(37, 99, 235), (22, 163, 74), (234, 88, 12), (147, 51, 234), (220, 38, 38), (13, 148, 136)];
+
+fn model<T: Clone + 'static>(items: Vec<T>) -> ModelRc<T> {
+    Rc::new(VecModel::from(items)).into()
+}
+
+fn algebra_mode(mode: AlgebraMode) -> algebra::Mode {
+    match mode {
+        AlgebraMode::Simplify => algebra::Mode::Simplify,
+        AlgebraMode::Expand => algebra::Mode::Expand,
+        AlgebraMode::Factor => algebra::Mode::Factor,
+        AlgebraMode::Solve => algebra::Mode::Solve,
+    }
+}
+
+fn ui_step(step: &algebra::Step) -> AlgebraStep {
+    // Non-breaking spaces, so that the spacing around signs survives text layout.
+    let text = |s: &str| SharedString::from(s.replace(' ', "\u{a0}"));
+    let tokens = step
+        .line
+        .iter()
+        .map(|token| {
+            let (numerator, denominator) = match &token.glyph {
+                Glyph::Text(t) => (text(t), SharedString::new()),
+                Glyph::Fraction(n, d) => (text(n), text(d)),
+            };
+            let underline = token.color.map_or(Color::from_argb_u8(0, 0, 0, 0), |c| {
+                let (r, g, b) = MARKERS[c % MARKERS.len()];
+                Color::from_rgb_u8(r, g, b)
+            });
+            AlgebraToken { text: numerator, denominator, underline, highlight: token.sign }
+        })
+        .collect();
+    AlgebraStep {
+        title: step.title.as_str().into(),
+        explanation: step.explanation.as_str().into(),
+        hint: step.hint.as_str().into(),
+        tokens: model(tokens),
+        operation: text(&step.operation),
+    }
+}
+
+/// The first `revealed` steps for `input`, or the error message.
+fn solution(mode: AlgebraMode, input: &str, revealed: i32) -> Solution {
+    match algebra::steps(algebra_mode(mode), input) {
+        Ok(steps) => {
+            let shown = usize::try_from(revealed).unwrap_or(0).min(steps.len());
+            Solution {
+                steps: model(steps[..shown].iter().map(ui_step).collect()),
+                total: steps.len() as i32,
+                message: SharedString::new(),
+            }
+        }
+        Err(error) => Solution { steps: model(Vec::new()), total: 0, message: error.to_string().into() },
+    }
+}
 
 /// Parses an optional positive count; an empty field means "automatic".
 fn parse_count(text: &str) -> Result<Option<u32>, String> {
@@ -62,7 +124,7 @@ fn main() -> Result<(), slint::PlatformError> {
         };
 
         let Scene { shapes, width, height, group_choice, group_labels, variant, variant_labels, summary, grouped } = scene;
-        ui.set_shapes(Rc::new(VecModel::from(shapes)).into());
+        ui.set_shapes(model(shapes));
         ui.set_view_width(width.max(visual::CELL) as f32);
         ui.set_view_height(height.max(visual::CELL) as f32);
         // Keep "entered denominator" (-1) until the user picks a group count.
@@ -79,6 +141,19 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_grouped(grouped);
         ui.set_message(message.into());
     });
+
+    let weak_ui = ui.as_weak();
+    ui.on_algebra_solve(move |mode, input, revealed| {
+        // Scroll once the new steps have been laid out.
+        let weak_ui = weak_ui.clone();
+        Timer::single_shot(Duration::from_millis(50), move || {
+            if let Some(ui) = weak_ui.upgrade() {
+                ui.invoke_scroll_algebra_to_end();
+            }
+        });
+        solution(mode, &input, revealed)
+    });
+    ui.on_algebra_example(|mode, index| algebra::example(algebra_mode(mode), usize::try_from(index).unwrap_or(0)).into());
 
     ui.run()
 }

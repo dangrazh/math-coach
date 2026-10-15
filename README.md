@@ -1,10 +1,13 @@
-# Fractions Visualizer
+# Leonie's Mathe Coach
 
-A simple destop app to visualize fractions using using [Slint](https://slint.rs) for the user interface.
+A simple desktop app to practise fractions and algebra, using [Slint](https://slint.rs) for the user interface.
 
 ## Usage
 
-Build the app using cargo run and then simply enter a fraction and press the "Bruch anzeigen" button.
+Build the app using cargo run. The start menu leads to the two trainers:
+
+- **Brüche** – enter a fraction and press the "Bruch anzeigen" button to see it visualized.
+- **Terme & Gleichungen** – step-by-step solutions for terms and equations (see below).
 
 ## Visualizations
 
@@ -27,3 +30,26 @@ row by row, …).
 
 The 3D views can be rotated a full 360° around the X and Z axes with the sliders or by dragging the drawing with the mouse.
 Mixed numbers are drawn as one completely filled shape per whole next to the fractional part (denominator ≤ 100, at most 4 wholes).
+
+## Terms and equations
+
+Four tabs share the same layout: type a term (or an equation) into the input field and press **Los geht's** /
+**Nächster Schritt** to reveal the solution one step at a time (**Alle Schritte** shows everything at once,
+**Beispiel** fills in an example). Every step has a German explanation and shows the whole expression:
+
+- terms that belong together (like terms, the products of an expansion, the common factor) are underlined in the same colour,
+- signs that a step changes or decides are highlighted in yellow, with a note explaining the rule
+  (minus before a bracket, minus times minus, moving a term to the other side, dividing by a negative number, …),
+- equation steps show the operation applied to both sides on the right, e.g. `| −2x`.
+
+The tabs:
+
+- **Vereinfachen** – multiply monomials (`3a·4b`), resolve `±(…)`, mark, reorder and combine like terms
+- **Ausmultiplizieren** – expand `k(a + b)`, `(a + b)(c + d)` and powers like `(a + b)²`, innermost brackets first
+- **Ausklammern** – factor out the greatest common factor (numbers and variables; a negative one if the first term is negative), with a check by expanding again
+- **Gleichungen lösen** – linear and quadratic equations in one variable: simplify both sides, clear fractions,
+  move variable terms left and numbers right, divide; quadratics via `x² = k`, factoring out `x`, or the
+  quadratic formula; the solution set is checked by substitution
+
+Input accepts `*`, `·`, `/`, `:`, `^`, `²`, `³`, implicit multiplication (`2x`, `3(x + 1)`, `(x + 1)(x − 1)`)
+and decimal numbers with `.` or `,`. Calculations are exact (fractions), so `x/2 + x/3` stays `5/6x`.
