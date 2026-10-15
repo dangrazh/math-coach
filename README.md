@@ -1,4 +1,4 @@
-# Leonie's Mathe Coach
+# Mathe Coach
 
 A simple desktop app to practise fractions and algebra, using [Slint](https://slint.rs) for the user interface.
 
