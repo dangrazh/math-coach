@@ -66,6 +66,11 @@ impl Vars {
         Self(self.iter().filter_map(|(v, e)| e.checked_sub(other.exponent(v)).filter(|&r| r > 0).map(|r| (v, r))).collect())
     }
 
+    /// The square root, if every exponent is even.
+    pub fn halved(&self) -> Option<Self> {
+        self.iter().map(|(v, e)| (e % 2 == 0).then_some((v, e / 2))).collect::<Option<_>>().map(Self)
+    }
+
     pub fn text(&self) -> String {
         self.iter().map(|(v, e)| if e == 1 { v.to_string() } else { format!("{v}{}", superscript(e)) }).collect()
     }
@@ -400,7 +405,7 @@ fn constant_value(expr: &Expr) -> Result<Rational, AlgebraError> {
 }
 
 pub fn push_text(line: &mut Line, text: impl Into<String>, color: Option<usize>, sign: bool) {
-    line.push(Token { glyph: Glyph::Text(text.into()), color, sign });
+    line.push(Token { glyph: Glyph::Text(text.into()), color, sign, struck: false });
 }
 
 /// A number with its sign; non-integers are drawn as stacked fractions.
@@ -415,7 +420,7 @@ pub fn push_number(line: &mut Line, value: Rational, color: Option<usize>, sign:
     } else {
         Glyph::Fraction(value.numer().to_string(), value.denom().to_string())
     };
-    line.push(Token { glyph, color, sign: sign && !negative });
+    line.push(Token { glyph, color, sign: sign && !negative, struck: false });
 }
 
 pub fn text_line(text: impl Into<String>) -> Line {
@@ -429,8 +434,14 @@ pub fn line_text(line: &Line) -> String {
         .map(|token| match &token.glyph {
             Glyph::Text(text) => text.clone(),
             Glyph::Fraction(num, den) => format!("{num}/{den}"),
+            Glyph::Stacked(top, bottom) => format!("{}/{}", bracketed(line_text(top)), bracketed(line_text(bottom))),
         })
         .collect()
+}
+
+/// Wraps a sum or product in brackets, so that the plain-text form of a stacked fraction stays unambiguous.
+fn bracketed(text: String) -> String {
+    if text.contains([' ', '·']) { format!("({text})") } else { text }
 }
 
 fn render_sum(sum: &Sum, line: &mut Line, inherited: Option<usize>) {

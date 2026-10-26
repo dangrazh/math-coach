@@ -88,7 +88,7 @@ pub fn steps(input: &str) -> Result<Vec<Step>, AlgebraError> {
 }
 
 /// The largest factor common to all (non-zero) terms; negative if the first term is.
-fn common_factor(terms: &[Mono]) -> Mono {
+pub fn common_factor(terms: &[Mono]) -> Mono {
     let numerator = terms.iter().fold(0, |g, t| gcd(g, t.coeff.numer()));
     let denominator = terms.iter().fold(1, |l, t| lcm(l, t.coeff.denom()));
     let vars = terms.iter().skip(1).fold(terms[0].vars.clone(), |acc, t| acc.common(&t.vars));

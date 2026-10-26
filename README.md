@@ -6,8 +6,13 @@ A simple desktop app to practise fractions and algebra, using [Slint](https://sl
 
 Build the app using cargo run. The start menu leads to the two trainers:
 
-- **Brüche** – enter a fraction and press the "Bruch anzeigen" button to see it visualized.
+- **Brüche** – a sub-menu with two parts:
+  - **Brüche darstellen** – enter a fraction and press the "Bruch anzeigen" button to see it visualized.
+  - **Kürzen & Erweitern** – step-by-step cancelling and expanding of fractions (see below).
 - **Terme & Gleichungen** – step-by-step solutions for terms and equations (see below).
+
+The app needs a larger main-thread stack than the Windows default (the whole window with all screens is built on
+it); `build.rs` sets 8 MB for MSVC builds.
 
 ## Visualizations
 
@@ -30,6 +35,25 @@ row by row, …).
 
 The 3D views can be rotated a full 360° around the X and Z axes with the sliders or by dragging the drawing with the mouse.
 Mixed numbers are drawn as one completely filled shape per whole next to the fractional part (denominator ≤ 100, at most 4 wholes).
+
+## Cancelling and expanding fractions
+
+Five tabs with the same step-by-step layout as the equation trainer (see below). Fractions are entered with one
+fraction bar, `Zähler / Nenner`; sums belong in brackets, e.g. `(4x + 8)/(6x + 12)`. In every step, factors that
+occur above and below are underlined in the same colour, and cancelled factors are struck through like on paper.
+
+- **Kürzen** – numbers only: split numerator and denominator into prime factors, mark the common ones (their
+  product is the ggT), strike them; improper results also get the mixed number
+- **Erweitern** – numbers only: `3/4 mit 5` (by a factor) or `3/4 auf 20` (to a new denominator, which first
+  finds the factor 20 : 4 = 5)
+- **Variablen kürzen** – sums are factored first (common factor, binomial formulas), then numbers are split into
+  ggT · rest and powers are written out (`a² = a·a`) before cancelling; a minus sign moves in front of the fraction
+- **Variablen erweitern** – `2a/3b mit 4a`, `x/(x + 1) mit (x − 1)` or `1/(x − 2) auf x² − 4` (the new
+  denominator must contain the old one as a factor)
+- **Potenzen kürzen** – equal bases are marked and cancelled with the exponent rule, shown as `x⁷⁻⁴`; this
+  also works for brackets like `(x + 1)⁵/(x + 1)²`
+
+Numbers in fractions must be integers.
 
 ## Terms and equations
 

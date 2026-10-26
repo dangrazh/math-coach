@@ -431,7 +431,7 @@ impl Equation {
     fn formula(&self, steps: &mut Vec<Step>, a: Rational, b: Rational, c: Rational) -> Vec<Root> {
         let v = self.var;
         let mut line = text_line(format!("{v}₁,₂ = "));
-        line.push(Token { glyph: Glyph::Fraction("−b ± √(b² − 4ac)".into(), "2a".into()), color: None, sign: false });
+        line.push(Token { glyph: Glyph::Fraction("−b ± √(b² − 4ac)".into(), "2a".into()), color: None, sign: false, struck: false });
         steps.push(Step::new(
             "Lösungsformel",
             format!(
@@ -472,7 +472,7 @@ impl Equation {
         }
         let (minus_b, two_a) = (-b, Rational::int(2) * a);
         let minus_b_hint = format!("−b heisst: das Vorzeichen von b umkehren. b = {b}, also −b = {minus_b}.");
-        let fraction = |numerator: String| Token { glyph: Glyph::Fraction(numerator, two_a.to_string()), color: None, sign: false };
+        let fraction = |numerator: String| Token { glyph: Glyph::Fraction(numerator, two_a.to_string()), color: None, sign: false, struck: false };
 
         if d.is_zero() {
             let x = minus_b / two_a;

@@ -1,4 +1,6 @@
 #![windows_subsystem = "windows"]
+// Slint generates the window's item tree as one large const array.
+#![allow(clippy::large_const_arrays)]
 
 mod algebra;
 mod fraction;
@@ -29,33 +31,51 @@ fn algebra_mode(mode: AlgebraMode) -> algebra::Mode {
         AlgebraMode::Expand => algebra::Mode::Expand,
         AlgebraMode::Factor => algebra::Mode::Factor,
         AlgebraMode::Solve => algebra::Mode::Solve,
+        AlgebraMode::Reduce => algebra::Mode::Reduce,
+        AlgebraMode::Extend => algebra::Mode::Extend,
+        AlgebraMode::ReduceVariables => algebra::Mode::ReduceVariables,
+        AlgebraMode::ExtendVariables => algebra::Mode::ExtendVariables,
+        AlgebraMode::ReducePowers => algebra::Mode::ReducePowers,
+    }
+}
+
+/// Non-breaking spaces, so that the spacing around signs survives text layout.
+fn ui_text(s: &str) -> SharedString {
+    s.replace(' ', "\u{a0}").into()
+}
+
+fn ui_piece(token: &algebra::Token) -> AlgebraPiece {
+    let (text, denominator) = match &token.glyph {
+        Glyph::Text(t) => (ui_text(t), SharedString::new()),
+        Glyph::Fraction(n, d) => (ui_text(n), ui_text(d)),
+        // Fractions are not nested inside stacked fractions.
+        Glyph::Stacked(..) => (SharedString::new(), SharedString::new()),
+    };
+    let underline = token.color.map_or(Color::from_argb_u8(0, 0, 0, 0), |c| {
+        let (r, g, b) = MARKERS[c % MARKERS.len()];
+        Color::from_rgb_u8(r, g, b)
+    });
+    AlgebraPiece { text, denominator, underline, highlight: token.sign, struck: token.struck }
+}
+
+fn ui_token(token: &algebra::Token) -> AlgebraToken {
+    match &token.glyph {
+        Glyph::Stacked(top, bottom) => AlgebraToken {
+            top: model(top.iter().map(ui_piece).collect()),
+            bottom: model(bottom.iter().map(ui_piece).collect()),
+            ..Default::default()
+        },
+        _ => AlgebraToken { piece: ui_piece(token), ..Default::default() },
     }
 }
 
 fn ui_step(step: &algebra::Step) -> AlgebraStep {
-    // Non-breaking spaces, so that the spacing around signs survives text layout.
-    let text = |s: &str| SharedString::from(s.replace(' ', "\u{a0}"));
-    let tokens = step
-        .line
-        .iter()
-        .map(|token| {
-            let (numerator, denominator) = match &token.glyph {
-                Glyph::Text(t) => (text(t), SharedString::new()),
-                Glyph::Fraction(n, d) => (text(n), text(d)),
-            };
-            let underline = token.color.map_or(Color::from_argb_u8(0, 0, 0, 0), |c| {
-                let (r, g, b) = MARKERS[c % MARKERS.len()];
-                Color::from_rgb_u8(r, g, b)
-            });
-            AlgebraToken { text: numerator, denominator, underline, highlight: token.sign }
-        })
-        .collect();
     AlgebraStep {
         title: step.title.as_str().into(),
         explanation: step.explanation.as_str().into(),
         hint: step.hint.as_str().into(),
-        tokens: model(tokens),
-        operation: text(&step.operation),
+        tokens: model(step.line.iter().map(ui_token).collect()),
+        operation: ui_text(&step.operation),
     }
 }
 

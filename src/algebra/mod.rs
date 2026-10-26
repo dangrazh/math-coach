@@ -1,10 +1,12 @@
-//! Step-by-step algebra: simplifying, expanding and factoring terms, and solving equations.
+//! Step-by-step algebra: simplifying, expanding and factoring terms, solving equations,
+//! and cancelling and expanding fractions.
 //!
 //! Every mode turns the user's input into a list of [`Step`]s, each with a German
 //! explanation and the current expression as tokens with marker colours.
 
 mod equation;
 mod factor;
+mod fractions;
 mod parse;
 mod rational;
 mod simplify;
@@ -29,6 +31,13 @@ pub enum Mode {
     Expand,
     Factor,
     Solve,
+    /// Cancelling a fraction of numbers.
+    Reduce,
+    /// Expanding a fraction of numbers.
+    Extend,
+    ReduceVariables,
+    ExtendVariables,
+    ReducePowers,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +45,8 @@ pub enum Glyph {
     Text(String),
     /// Numerator over denominator.
     Fraction(String, String),
+    /// A fraction whose numerator and denominator are themselves coloured lines.
+    Stacked(Line, Line),
 }
 
 /// One piece of a rendered expression.
@@ -46,6 +57,8 @@ pub struct Token {
     pub color: Option<usize>,
     /// Highlight, because this sign was changed or decided in this step.
     pub sign: bool,
+    /// Crossed out, because this factor was cancelled.
+    pub struck: bool,
 }
 
 pub type Line = Vec<Token>;
@@ -108,6 +121,15 @@ pub enum AlgebraError {
     NumbersTooLarge,
     MultipleVariables(String),
     DegreeTooHigh,
+    MissingFractionBar,
+    TooManyFractionBars,
+    EmptyFractionPart,
+    NotInteger,
+    VariablesNotAllowed,
+    MissingExtension,
+    ExtendByZero,
+    /// The target denominator (first) is no multiple of the denominator (second).
+    NotAMultiple(String, String),
 }
 
 impl fmt::Display for AlgebraError {
@@ -136,6 +158,20 @@ impl fmt::Display for AlgebraError {
             Self::NumbersTooLarge => f.write_str("Die Zahlen werden zu gross."),
             Self::MultipleVariables(names) => write!(f, "Die Gleichung darf nur eine Variable enthalten (gefunden: {names})."),
             Self::DegreeTooHigh => f.write_str("Es werden nur lineare und quadratische Gleichungen gelöst (höchstens x²)."),
+            Self::MissingFractionBar => f.write_str("Bitte einen Bruch mit Bruchstrich eingeben, z. B. 12/18."),
+            Self::TooManyFractionBars => {
+                f.write_str("Bitte nur einen Bruchstrich (/) verwenden. Setze Zähler und Nenner bei Bedarf in Klammern.")
+            }
+            Self::EmptyFractionPart => f.write_str("Über und unter dem Bruchstrich muss etwas stehen."),
+            Self::NotInteger => f.write_str("Bitte nur ganze Zahlen verwenden – keine Dezimalzahlen oder Brüche im Zähler und Nenner."),
+            Self::VariablesNotAllowed => f.write_str("Hier bitte nur Zahlen eingeben. Für Brüche mit Variablen gibt es eigene Tabs."),
+            Self::MissingExtension => {
+                f.write_str("Schreibe dazu, womit erweitert wird («3/4 mit 5») oder auf welchen Nenner («3/4 auf 20»).")
+            }
+            Self::ExtendByZero => f.write_str("Mit 0 darf man nicht erweitern – im Nenner stünde sonst 0."),
+            Self::NotAMultiple(target, denominator) => {
+                write!(f, "{target} ist kein Vielfaches von {denominator} – auf diesen Nenner kann man nicht erweitern.")
+            }
         }
     }
 }
@@ -148,6 +184,11 @@ pub fn steps(mode: Mode, input: &str) -> Result<Vec<Step>, AlgebraError> {
         Mode::Simplify | Mode::Expand => simplify_steps(input),
         Mode::Factor => factor::steps(input),
         Mode::Solve => equation::steps(input),
+        Mode::Reduce => fractions::reduce_steps(input, fractions::Style::Numbers),
+        Mode::ReduceVariables => fractions::reduce_steps(input, fractions::Style::Variables),
+        Mode::ReducePowers => fractions::reduce_steps(input, fractions::Style::Powers),
+        Mode::Extend => fractions::extend_steps(input, false),
+        Mode::ExtendVariables => fractions::extend_steps(input, true),
     }
 }
 
@@ -189,6 +230,21 @@ const SOLVE_EXAMPLES: &[&str] = &[
     "2x² = 18",
     "x² + 3x = 0",
 ];
+const REDUCE_EXAMPLES: &[&str] = &["12/18", "24/36", "-14/21", "45/60", "84/126", "36/12", "13/20"];
+const EXTEND_EXAMPLES: &[&str] = &["3/4 mit 5", "2/3 auf 12", "5/8 mit 3", "7/9 auf 45", "-1/6 auf 24"];
+const REDUCE_VARIABLES_EXAMPLES: &[&str] = &[
+    "6xy/9x",
+    "12a²b/18ab³",
+    "(4x + 8)/(6x + 12)",
+    "(x² - 9)/(x + 3)",
+    "(a² + 2ab + b²)/(3a + 3b)",
+    "(2x - 6)/(9 - 3x)",
+    "(x + 2)/2",
+];
+const EXTEND_VARIABLES_EXAMPLES: &[&str] =
+    &["2a/3b mit 4a", "x/y auf xy²", "3/(4x) auf 12x²y", "x/(x + 1) mit (x - 1)", "1/(x - 2) auf x² - 4"];
+const REDUCE_POWERS_EXAMPLES: &[&str] =
+    &["x⁵/x³", "a⁴b²/(a²b⁵)", "15x⁷y³/(25x⁴y⁵)", "-12m³n⁶/(18m³n²)", "(x + 1)⁵/(x + 1)²", "8a²b/(12a⁴b)"];
 
 /// The `index`-th example for a mode (wrapping around).
 pub fn example(mode: Mode, index: usize) -> &'static str {
@@ -197,6 +253,11 @@ pub fn example(mode: Mode, index: usize) -> &'static str {
         Mode::Expand => EXPAND_EXAMPLES,
         Mode::Factor => FACTOR_EXAMPLES,
         Mode::Solve => SOLVE_EXAMPLES,
+        Mode::Reduce => REDUCE_EXAMPLES,
+        Mode::Extend => EXTEND_EXAMPLES,
+        Mode::ReduceVariables => REDUCE_VARIABLES_EXAMPLES,
+        Mode::ExtendVariables => EXTEND_VARIABLES_EXAMPLES,
+        Mode::ReducePowers => REDUCE_POWERS_EXAMPLES,
     };
     list[index % list.len()]
 }
@@ -206,7 +267,17 @@ mod tests {
     use super::tree::line_text;
     use super::*;
 
-    const MODES: [Mode; 4] = [Mode::Simplify, Mode::Expand, Mode::Factor, Mode::Solve];
+    const MODES: [Mode; 9] = [
+        Mode::Simplify,
+        Mode::Expand,
+        Mode::Factor,
+        Mode::Solve,
+        Mode::Reduce,
+        Mode::Extend,
+        Mode::ReduceVariables,
+        Mode::ExtendVariables,
+        Mode::ReducePowers,
+    ];
 
     #[test]
     fn every_example_works() {

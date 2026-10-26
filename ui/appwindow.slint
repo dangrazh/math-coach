@@ -1,9 +1,9 @@
 import { Button, CheckBox, LineEdit, Slider } from "std-widgets.slint";
-import { AlgebraMode, AlgebraScreen, AlgebraStep, AlgebraTab, AlgebraToken, Solution } from "algebra.slint";
+import { AlgebraMode, AlgebraPiece, AlgebraScreen, AlgebraStep, AlgebraTab, AlgebraToken, Solution } from "algebra.slint";
 
-export { AlgebraMode, AlgebraStep, AlgebraToken, Solution }
+export { AlgebraMode, AlgebraPiece, AlgebraStep, AlgebraToken, Solution }
 
-export enum Screen { menu, fractions, algebra }
+export enum Screen { menu, fraction-menu, fractions, fraction-coach, algebra }
 
 export struct Fraction {
     integer: int,
@@ -169,6 +169,7 @@ export component AppWindow inherits Window {
 
     in-out property <Screen> screen: Screen.menu;
     in-out property <AlgebraMode> algebra-mode: AlgebraMode.simplify;
+    in-out property <AlgebraMode> fraction-mode: AlgebraMode.reduce;
     // Returns the first `revealed` solution steps for the input (see `Solution`).
     callback algebra-solve(AlgebraMode, string, int) -> Solution;
     callback algebra-example(AlgebraMode, int) -> string;
@@ -178,6 +179,11 @@ export component AppWindow inherits Window {
         expand-screen.scroll-to-end();
         factor-screen.scroll-to-end();
         solve-screen.scroll-to-end();
+        reduce-screen.scroll-to-end();
+        extend-screen.scroll-to-end();
+        reduce-variables-screen.scroll-to-end();
+        extend-variables-screen.scroll-to-end();
+        reduce-powers-screen.scroll-to-end();
     }
 
     // Recomputes `shapes` from `fraction`, `mode` and the rotation angles.
@@ -252,9 +258,9 @@ export component AppWindow inherits Window {
                     title: "Brüche";
                     // Half of the padded width minus the spacing.
                     width: (root.width - 84px) / 2;
-                    subtitle: "Brüche als Kreis, Brett, Dreieck oder Würfel darstellen";
+                    subtitle: "Brüche darstellen, kürzen und erweitern";
                     clicked => {
-                        root.screen = Screen.fractions;
+                        root.screen = Screen.fraction-menu;
                     }
                 }
                 MenuCard {
@@ -265,6 +271,176 @@ export component AppWindow inherits Window {
                     subtitle: "Vereinfachen, ausmultiplizieren, ausklammern und Gleichungen lösen – Schritt für Schritt";
                     clicked => {
                         root.screen = Screen.algebra;
+                    }
+                }
+            }
+        }
+    }
+
+    if root.screen == Screen.fraction-menu: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        VerticalLayout {
+            padding: 30px;
+            spacing: 24px;
+            HorizontalLayout {
+                alignment: start;
+                BackButton {
+                    clicked => {
+                        root.screen = Screen.menu;
+                    }
+                }
+            }
+            Rectangle {
+                vertical-stretch: 1;
+            }
+            Text {
+                text: "Brüche";
+                font-size: 32px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                spacing: 24px;
+                MenuCard {
+                    symbol: "◔";
+                    title: "Brüche darstellen";
+                    // Half of the padded width minus the spacing.
+                    width: (root.width - 84px) / 2;
+                    subtitle: "Brüche als Kreis, Brett, Dreieck oder Würfel darstellen";
+                    clicked => {
+                        root.screen = Screen.fractions;
+                    }
+                }
+                MenuCard {
+                    symbol: "⁶⁄₈ = ¾";
+                    title: "Kürzen & Erweitern";
+                    // Half of the padded width minus the spacing.
+                    width: (root.width - 84px) / 2;
+                    subtitle: "Brüche mit Zahlen, Variablen und Potenzen kürzen und erweitern – Schritt für Schritt";
+                    clicked => {
+                        root.screen = Screen.fraction-coach;
+                    }
+                }
+            }
+            Rectangle {
+                vertical-stretch: 1;
+            }
+        }
+    }
+
+    // Hidden instead of removed, so that each screen keeps its inputs.
+    Rectangle {
+        visible: root.screen == Screen.fraction-coach;
+        width: parent.width;
+        height: parent.height;
+        VerticalLayout {
+            padding: 10px;
+            spacing: 8px;
+            HorizontalLayout {
+                spacing: 6px;
+                BackButton {
+                    text: "← Brüche";
+                    clicked => {
+                        root.screen = Screen.fraction-menu;
+                    }
+                }
+                AlgebraTab {
+                    text: "Kürzen";
+                    value: AlgebraMode.reduce;
+                    current <=> root.fraction-mode;
+                }
+                AlgebraTab {
+                    text: "Erweitern";
+                    value: AlgebraMode.extend;
+                    current <=> root.fraction-mode;
+                }
+                AlgebraTab {
+                    text: "Variablen kürzen";
+                    value: AlgebraMode.reduce-variables;
+                    current <=> root.fraction-mode;
+                }
+                AlgebraTab {
+                    text: "Variablen erweitern";
+                    value: AlgebraMode.extend-variables;
+                    current <=> root.fraction-mode;
+                }
+                AlgebraTab {
+                    text: "Potenzen kürzen";
+                    value: AlgebraMode.reduce-powers;
+                    current <=> root.fraction-mode;
+                }
+            }
+            Rectangle {
+                vertical-stretch: 1;
+                reduce-screen := AlgebraScreen {
+                    visible: root.fraction-mode == AlgebraMode.reduce;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.reduce;
+                    intro: "Brüche kürzen: Zähler und Nenner durch dieselbe Zahl teilen, z. B. 12/18 = 2/3. Schreibe den Bruch mit / (Zähler / Nenner).";
+                    placeholder: "Bruch eingeben, z. B. 12/18";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                extend-screen := AlgebraScreen {
+                    visible: root.fraction-mode == AlgebraMode.extend;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.extend;
+                    intro: "Brüche erweitern: Zähler und Nenner mit derselben Zahl multiplizieren. Schreibe «3/4 mit 5» (Erweiterungszahl) oder «3/4 auf 20» (neuer Nenner).";
+                    placeholder: "z. B. 3/4 mit 5 oder 3/4 auf 20";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                reduce-variables-screen := AlgebraScreen {
+                    visible: root.fraction-mode == AlgebraMode.reduce-variables;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.reduce-variables;
+                    intro: "Brüche mit Variablen kürzen, z. B. 12a²b / 18ab³ oder (4x + 8)/(6x + 12). Setze Summen in Klammern.";
+                    placeholder: "Bruch eingeben, z. B. 6xy/9x";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                extend-variables-screen := AlgebraScreen {
+                    visible: root.fraction-mode == AlgebraMode.extend-variables;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.extend-variables;
+                    intro: "Brüche mit Variablen erweitern: «2a/3b mit 4a» (Erweiterungsfaktor) oder «x/y auf xy²» (neuer Nenner).";
+                    placeholder: "z. B. 2a/3b mit 4a";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
+                    }
+                }
+                reduce-powers-screen := AlgebraScreen {
+                    visible: root.fraction-mode == AlgebraMode.reduce-powers;
+                    width: parent.width;
+                    height: parent.height;
+                    mode: AlgebraMode.reduce-powers;
+                    intro: "Brüche mit Potenzen kürzen, z. B. 15x⁷y³ / (25x⁴y⁵). Hochzahlen mit ^ oder ² schreiben.";
+                    placeholder: "Bruch eingeben, z. B. x^5/x^3";
+                    solve(mode, input, revealed) => {
+                        return root.algebra-solve(mode, input, revealed);
+                    }
+                    example(mode, index) => {
+                        return root.algebra-example(mode, index);
                     }
                 }
             }
@@ -380,12 +556,13 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 12px;
                 BackButton {
+                    text: "← Brüche";
                     clicked => {
-                        root.screen = Screen.menu;
+                        root.screen = Screen.fraction-menu;
                     }
                 }
                 Text {
-                    text: "Brüche";
+                    text: "Brüche darstellen";
                     font-size: 20px;
                     font-weight: 700;
                     vertical-alignment: center;
