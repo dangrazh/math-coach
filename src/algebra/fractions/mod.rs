@@ -4,11 +4,13 @@
 //! number, variable powers and brackets that cannot be split further. Cancelling divides
 //! both by their common part; expanding multiplies both by the same factor.
 
+mod arithmetic;
 mod extend;
 mod reduce;
 
 use std::collections::BTreeSet;
 
+pub use arithmetic::{combined_steps, steps as arithmetic_steps};
 pub use extend::steps as extend_steps;
 pub use reduce::{steps as reduce_steps, Style};
 

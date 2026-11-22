@@ -1,9 +1,18 @@
 import { Button, CheckBox, LineEdit, Slider } from "std-widgets.slint";
-import { AlgebraMode, AlgebraPiece, AlgebraScreen, AlgebraStep, AlgebraTab, AlgebraToken, Solution } from "algebra.slint";
+import { AlgebraMode, AlgebraPiece, AlgebraScreen, AlgebraStep, AlgebraToken, Solution, TabState } from "algebra.slint";
 
-export { AlgebraMode, AlgebraPiece, AlgebraStep, AlgebraToken, Solution }
+export { AlgebraMode, AlgebraPiece, AlgebraStep, AlgebraToken, Solution, TabState }
 
-export enum Screen { menu, fraction-menu, fractions, fraction-coach, algebra }
+// `coach` is the step-by-step screen of the algebra and fraction trainers.
+export enum Screen { menu, fraction-menu, fractions, coach }
+
+// One tab of a step-by-step trainer.
+struct CoachTab {
+    label: string,
+    mode: AlgebraMode,
+    intro: string,
+    placeholder: string,
+}
 
 export struct Fraction {
     integer: int,
@@ -119,6 +128,7 @@ component MenuCard inherits Rectangle {
             color: #1e3a8a;
             font-size: 24px;
             font-weight: 700;
+            wrap: word-wrap;
             horizontal-alignment: center;
         }
         Text {
@@ -168,22 +178,131 @@ export component AppWindow inherits Window {
     icon: @image-url("math.png");
 
     in-out property <Screen> screen: Screen.menu;
-    in-out property <AlgebraMode> algebra-mode: AlgebraMode.simplify;
-    in-out property <AlgebraMode> fraction-mode: AlgebraMode.reduce;
     // Returns the first `revealed` solution steps for the input (see `Solution`).
     callback algebra-solve(AlgebraMode, string, int) -> Solution;
     callback algebra-example(AlgebraMode, int) -> string;
+    // Keep and restore the input of each tab.
+    callback algebra-save(AlgebraMode, TabState);
+    callback algebra-load(AlgebraMode) -> TabState;
 
     public function scroll-algebra-to-end() {
-        simplify-screen.scroll-to-end();
-        expand-screen.scroll-to-end();
-        factor-screen.scroll-to-end();
-        solve-screen.scroll-to-end();
-        reduce-screen.scroll-to-end();
-        extend-screen.scroll-to-end();
-        reduce-variables-screen.scroll-to-end();
-        extend-variables-screen.scroll-to-end();
-        reduce-powers-screen.scroll-to-end();
+        coach-screen.scroll-to-end();
+    }
+
+    property <[CoachTab]> algebra-tabs: [
+        {
+            label: "Vereinfachen",
+            mode: AlgebraMode.simplify,
+            intro: "Gleichartige Terme zusammenfassen, z. B. 3x + 2y − 5x + 4. Schreibe Produkte mit * oder ·, Hochzahlen mit ^ oder ².",
+            placeholder: "Term eingeben, z. B. 3x + 2y - 5x + 4",
+        },
+        {
+            label: "Ausmultiplizieren",
+            mode: AlgebraMode.expand,
+            intro: "Klammern auflösen und ausmultiplizieren, z. B. −2(a − 4b) oder (x + 3)(x − 2).",
+            placeholder: "Term mit Klammern eingeben, z. B. (x + 3)(x - 2)",
+        },
+        {
+            label: "Ausklammern",
+            mode: AlgebraMode.factor,
+            intro: "Den grössten gemeinsamen Faktor ausklammern, z. B. 4x² − 8x = 4x(x − 2).",
+            placeholder: "Summe eingeben, z. B. 4x^2 - 8x",
+        },
+        {
+            label: "Gleichungen lösen",
+            mode: AlgebraMode.solve,
+            intro: "Lineare und quadratische Gleichungen mit einer Variablen lösen, z. B. 3(x − 2) + 4 = 2x − 5 oder x² − 5x + 6 = 0.",
+            placeholder: "Gleichung eingeben, z. B. 5x - 7 = 2x + 8",
+        },
+    ];
+    property <[CoachTab]> fraction-tabs: [
+        {
+            label: "Kürzen",
+            mode: AlgebraMode.reduce,
+            intro: "Brüche kürzen: Zähler und Nenner durch dieselbe Zahl teilen, z. B. 12/18 = 2/3. Schreibe den Bruch mit / (Zähler / Nenner).",
+            placeholder: "Bruch eingeben, z. B. 12/18",
+        },
+        {
+            label: "Erweitern",
+            mode: AlgebraMode.extend,
+            intro: "Brüche erweitern: Zähler und Nenner mit derselben Zahl multiplizieren. Schreibe «3/4 mit 5» (Erweiterungszahl) oder «3/4 auf 20» (neuer Nenner).",
+            placeholder: "z. B. 3/4 mit 5 oder 3/4 auf 20",
+        },
+        {
+            label: "Variablen kürzen",
+            mode: AlgebraMode.reduce-variables,
+            intro: "Brüche mit Variablen kürzen, z. B. 12a²b / 18ab³ oder (4x + 8)/(6x + 12). Setze Summen in Klammern.",
+            placeholder: "Bruch eingeben, z. B. 6xy/9x",
+        },
+        {
+            label: "Variablen erweitern",
+            mode: AlgebraMode.extend-variables,
+            intro: "Brüche mit Variablen erweitern: «2a/3b mit 4a» (Erweiterungsfaktor) oder «x/y auf xy²» (neuer Nenner).",
+            placeholder: "z. B. 2a/3b mit 4a",
+        },
+        {
+            label: "Potenzen kürzen",
+            mode: AlgebraMode.reduce-powers,
+            intro: "Brüche mit Potenzen kürzen, z. B. 15x⁷y³ / (25x⁴y⁵). Hochzahlen mit ^ oder ² schreiben.",
+            placeholder: "Bruch eingeben, z. B. x^5/x^3",
+        },
+    ];
+    property <[CoachTab]> arithmetic-tabs: [
+        {
+            label: "Multiplizieren",
+            mode: AlgebraMode.multiply,
+            intro: "Brüche multiplizieren: Zähler mal Zähler, Nenner mal Nenner – vorher kürzen. Auch ganze Zahlen (3) und gemischte Zahlen (1 1/2) gehen.",
+            placeholder: "z. B. 2/3 · 3/4  oder  2/3 * 3/4",
+        },
+        {
+            label: "Dividieren",
+            mode: AlgebraMode.divide,
+            intro: "Brüche dividieren: mit dem Kehrwert multiplizieren. Schreibe das Geteilt-Zeichen als : (der Schrägstrich / ist der Bruchstrich).",
+            placeholder: "z. B. 3/4 : 1/2",
+        },
+        {
+            label: "Addieren",
+            mode: AlgebraMode.add,
+            intro: "Brüche addieren: auf den Hauptnenner bringen, dann die Zähler addieren. Auch ganze Zahlen (3) und gemischte Zahlen (1 1/2) gehen.",
+            placeholder: "z. B. 1/4 + 2/3",
+        },
+        {
+            label: "Subtrahieren",
+            mode: AlgebraMode.subtract,
+            intro: "Brüche subtrahieren: auf den Hauptnenner bringen, dann die Zähler subtrahieren. Negative Zahlen in Klammern, z. B. 1/2 − (−1/3).",
+            placeholder: "z. B. 3/4 - 1/6",
+        },
+        {
+            label: "Gemischte Rechnungen",
+            mode: AlgebraMode.combined,
+            intro: "Längere Rechnungen mit +, −, · und : und Klammern. Der Coach rechnet eine Teilrechnung nach der anderen – in der richtigen Reihenfolge: Klammern zuerst, Punkt vor Strich, sonst von links nach rechts.",
+            placeholder: "z. B. 1/2 + 1/3 · 3/4  oder  (1/2 + 1/3) : 5/6",
+        },
+    ];
+    // 0 = Terme & Gleichungen, 1 = Kürzen & Erweitern, 2 = Rechnen mit Brüchen.
+    property <int> coach-category: 0;
+    // The last selected tab of each trainer.
+    property <int> algebra-tab: 0;
+    property <int> fraction-tab: 0;
+    property <int> arithmetic-tab: 0;
+    property <[CoachTab]> coach-tabs: root.coach-category == 0 ? root.algebra-tabs : root.coach-category == 1 ? root.fraction-tabs : root.arithmetic-tabs;
+    property <int> coach-tab: root.coach-category == 0 ? root.algebra-tab : root.coach-category == 1 ? root.fraction-tab : root.arithmetic-tab;
+
+    function open-coach(category: int) {
+        root.coach-category = category;
+        root.screen = Screen.coach;
+        coach-screen.show(root.coach-tabs[root.coach-tab].mode);
+    }
+
+    function select-tab(index: int) {
+        if root.coach-category == 0 {
+            root.algebra-tab = index;
+        } else if root.coach-category == 1 {
+            root.fraction-tab = index;
+        } else {
+            root.arithmetic-tab = index;
+        }
+        coach-screen.show(root.coach-tabs[index].mode);
     }
 
     // Recomputes `shapes` from `fraction`, `mode` and the rotation angles.
@@ -258,7 +377,7 @@ export component AppWindow inherits Window {
                     title: "Brüche";
                     // Half of the padded width minus the spacing.
                     width: (root.width - 84px) / 2;
-                    subtitle: "Brüche darstellen, kürzen und erweitern";
+                    subtitle: "Brüche darstellen, kürzen, erweitern und damit rechnen";
                     clicked => {
                         root.screen = Screen.fraction-menu;
                     }
@@ -270,7 +389,7 @@ export component AppWindow inherits Window {
                     width: (root.width - 84px) / 2;
                     subtitle: "Vereinfachen, ausmultiplizieren, ausklammern und Gleichungen lösen – Schritt für Schritt";
                     clicked => {
-                        root.screen = Screen.algebra;
+                        root.open-coach(0);
                     }
                 }
             }
@@ -305,8 +424,8 @@ export component AppWindow inherits Window {
                 MenuCard {
                     symbol: "◔";
                     title: "Brüche darstellen";
-                    // Half of the padded width minus the spacing.
-                    width: (root.width - 84px) / 2;
+                    // A third of the padded width minus the spacing.
+                    width: (root.width - 108px) / 3;
                     subtitle: "Brüche als Kreis, Brett, Dreieck oder Würfel darstellen";
                     clicked => {
                         root.screen = Screen.fractions;
@@ -315,11 +434,21 @@ export component AppWindow inherits Window {
                 MenuCard {
                     symbol: "⁶⁄₈ = ¾";
                     title: "Kürzen & Erweitern";
-                    // Half of the padded width minus the spacing.
-                    width: (root.width - 84px) / 2;
+                    // A third of the padded width minus the spacing.
+                    width: (root.width - 108px) / 3;
                     subtitle: "Brüche mit Zahlen, Variablen und Potenzen kürzen und erweitern – Schritt für Schritt";
                     clicked => {
-                        root.screen = Screen.fraction-coach;
+                        root.open-coach(1);
+                    }
+                }
+                MenuCard {
+                    symbol: "+ − · :";
+                    title: "Rechnen mit Brüchen";
+                    // A third of the padded width minus the spacing.
+                    width: (root.width - 108px) / 3;
+                    subtitle: "Brüche multiplizieren, dividieren, addieren und subtrahieren – auch gemischt, Schritt für Schritt";
+                    clicked => {
+                        root.open-coach(2);
                     }
                 }
             }
@@ -329,9 +458,11 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Hidden instead of removed, so that each screen keeps its inputs.
+    // One step-by-step screen for all tabs of the three trainers; each tab's input is kept
+    // by Rust (see AlgebraScreen.show). A separate screen per tab would make the generated
+    // window code so large that release builds take forever.
     Rectangle {
-        visible: root.screen == Screen.fraction-coach;
+        visible: root.screen == Screen.coach;
         width: parent.width;
         height: parent.height;
         VerticalLayout {
@@ -340,206 +471,34 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 spacing: 6px;
                 BackButton {
-                    text: "← Brüche";
+                    text: root.coach-category == 0 ? "← Menü" : "← Brüche";
                     clicked => {
-                        root.screen = Screen.fraction-menu;
+                        root.screen = root.coach-category == 0 ? Screen.menu : Screen.fraction-menu;
                     }
                 }
-                AlgebraTab {
-                    text: "Kürzen";
-                    value: AlgebraMode.reduce;
-                    current <=> root.fraction-mode;
-                }
-                AlgebraTab {
-                    text: "Erweitern";
-                    value: AlgebraMode.extend;
-                    current <=> root.fraction-mode;
-                }
-                AlgebraTab {
-                    text: "Variablen kürzen";
-                    value: AlgebraMode.reduce-variables;
-                    current <=> root.fraction-mode;
-                }
-                AlgebraTab {
-                    text: "Variablen erweitern";
-                    value: AlgebraMode.extend-variables;
-                    current <=> root.fraction-mode;
-                }
-                AlgebraTab {
-                    text: "Potenzen kürzen";
-                    value: AlgebraMode.reduce-powers;
-                    current <=> root.fraction-mode;
-                }
-            }
-            Rectangle {
-                vertical-stretch: 1;
-                reduce-screen := AlgebraScreen {
-                    visible: root.fraction-mode == AlgebraMode.reduce;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.reduce;
-                    intro: "Brüche kürzen: Zähler und Nenner durch dieselbe Zahl teilen, z. B. 12/18 = 2/3. Schreibe den Bruch mit / (Zähler / Nenner).";
-                    placeholder: "Bruch eingeben, z. B. 12/18";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
-                }
-                extend-screen := AlgebraScreen {
-                    visible: root.fraction-mode == AlgebraMode.extend;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.extend;
-                    intro: "Brüche erweitern: Zähler und Nenner mit derselben Zahl multiplizieren. Schreibe «3/4 mit 5» (Erweiterungszahl) oder «3/4 auf 20» (neuer Nenner).";
-                    placeholder: "z. B. 3/4 mit 5 oder 3/4 auf 20";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
-                }
-                reduce-variables-screen := AlgebraScreen {
-                    visible: root.fraction-mode == AlgebraMode.reduce-variables;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.reduce-variables;
-                    intro: "Brüche mit Variablen kürzen, z. B. 12a²b / 18ab³ oder (4x + 8)/(6x + 12). Setze Summen in Klammern.";
-                    placeholder: "Bruch eingeben, z. B. 6xy/9x";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
-                }
-                extend-variables-screen := AlgebraScreen {
-                    visible: root.fraction-mode == AlgebraMode.extend-variables;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.extend-variables;
-                    intro: "Brüche mit Variablen erweitern: «2a/3b mit 4a» (Erweiterungsfaktor) oder «x/y auf xy²» (neuer Nenner).";
-                    placeholder: "z. B. 2a/3b mit 4a";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
-                }
-                reduce-powers-screen := AlgebraScreen {
-                    visible: root.fraction-mode == AlgebraMode.reduce-powers;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.reduce-powers;
-                    intro: "Brüche mit Potenzen kürzen, z. B. 15x⁷y³ / (25x⁴y⁵). Hochzahlen mit ^ oder ² schreiben.";
-                    placeholder: "Bruch eingeben, z. B. x^5/x^3";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
-                }
-            }
-        }
-    }
-
-    // Hidden instead of removed, so that each screen keeps its inputs.
-    Rectangle {
-        visible: root.screen == Screen.algebra;
-        width: parent.width;
-        height: parent.height;
-        VerticalLayout {
-            padding: 10px;
-            spacing: 8px;
-            HorizontalLayout {
-                spacing: 6px;
-                BackButton {
+                for tab[index] in root.coach-tabs: Button {
+                    text: tab.label;
+                    primary: index == root.coach-tab;
                     clicked => {
-                        root.screen = Screen.menu;
+                        root.select-tab(index);
                     }
-                }
-                AlgebraTab {
-                    text: "Vereinfachen";
-                    value: AlgebraMode.simplify;
-                    current <=> root.algebra-mode;
-                }
-                AlgebraTab {
-                    text: "Ausmultiplizieren";
-                    value: AlgebraMode.expand;
-                    current <=> root.algebra-mode;
-                }
-                AlgebraTab {
-                    text: "Ausklammern";
-                    value: AlgebraMode.factor;
-                    current <=> root.algebra-mode;
-                }
-                AlgebraTab {
-                    text: "Gleichungen lösen";
-                    value: AlgebraMode.solve;
-                    current <=> root.algebra-mode;
                 }
             }
-            Rectangle {
+            coach-screen := AlgebraScreen {
                 vertical-stretch: 1;
-                simplify-screen := AlgebraScreen {
-                    visible: root.algebra-mode == AlgebraMode.simplify;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.simplify;
-                    intro: "Gleichartige Terme zusammenfassen, z. B. 3x + 2y − 5x + 4. Schreibe Produkte mit * oder ·, Hochzahlen mit ^ oder ².";
-                    placeholder: "Term eingeben, z. B. 3x + 2y - 5x + 4";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
+                intro: root.coach-tabs[root.coach-tab].intro;
+                placeholder: root.coach-tabs[root.coach-tab].placeholder;
+                solve(mode, input, revealed) => {
+                    return root.algebra-solve(mode, input, revealed);
                 }
-                expand-screen := AlgebraScreen {
-                    visible: root.algebra-mode == AlgebraMode.expand;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.expand;
-                    intro: "Klammern auflösen und ausmultiplizieren, z. B. −2(a − 4b) oder (x + 3)(x − 2).";
-                    placeholder: "Term mit Klammern eingeben, z. B. (x + 3)(x - 2)";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
+                example(mode, index) => {
+                    return root.algebra-example(mode, index);
                 }
-                factor-screen := AlgebraScreen {
-                    visible: root.algebra-mode == AlgebraMode.factor;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.factor;
-                    intro: "Den grössten gemeinsamen Faktor ausklammern, z. B. 4x² − 8x = 4x(x − 2).";
-                    placeholder: "Summe eingeben, z. B. 4x^2 - 8x";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
+                save-state(mode, state) => {
+                    root.algebra-save(mode, state);
                 }
-                solve-screen := AlgebraScreen {
-                    visible: root.algebra-mode == AlgebraMode.solve;
-                    width: parent.width;
-                    height: parent.height;
-                    mode: AlgebraMode.solve;
-                    intro: "Lineare und quadratische Gleichungen mit einer Variablen lösen, z. B. 3(x − 2) + 4 = 2x − 5 oder x² − 5x + 6 = 0.";
-                    placeholder: "Gleichung eingeben, z. B. 5x - 7 = 2x + 8";
-                    solve(mode, input, revealed) => {
-                        return root.algebra-solve(mode, input, revealed);
-                    }
-                    example(mode, index) => {
-                        return root.algebra-example(mode, index);
-                    }
+                load-state(mode) => {
+                    return root.algebra-load(mode);
                 }
             }
         }

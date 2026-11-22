@@ -9,6 +9,8 @@ Build the app using cargo run. The start menu leads to the two trainers:
 - **Brüche** – a sub-menu with two parts:
   - **Brüche darstellen** – enter a fraction and press the "Bruch anzeigen" button to see it visualized.
   - **Kürzen & Erweitern** – step-by-step cancelling and expanding of fractions (see below).
+  - **Rechnen mit Brüchen** – step-by-step multiplying, dividing, adding and subtracting of fractions, also in longer
+    calculations with brackets (see below).
 - **Terme & Gleichungen** – step-by-step solutions for terms and equations (see below).
 
 The app needs a larger main-thread stack than the Windows default (the whole window with all screens is built on
@@ -54,6 +56,31 @@ occur above and below are underlined in the same colour, and cancelled factors a
   also works for brackets like `(x + 1)⁵/(x + 1)²`
 
 Numbers in fractions must be integers.
+
+## Calculating with fractions
+
+Four tabs – **Multiplizieren**, **Dividieren**, **Addieren**, **Subtrahieren** – with the same step-by-step layout.
+Enter two numbers with one operator: `2/3 · 3/4`, `3/4 : 1/2`, `1/4 + 2/3`, `3/4 - 1/6`. Whole numbers (`3`),
+mixed numbers (`1 1/2`) and negative numbers (`-5/6`, `1/2 - (-1/3)`) are accepted; division uses `:` because `/` is
+the fraction bar. Every step says what is done and why:
+
+- whole and mixed numbers are first written as fractions (`1 1/2 = (1·2 + 1)/2 = 3/2`)
+- **multiplying**: decide the sign, write everything on one fraction bar (numerator times numerator, denominator
+  times denominator), cancel before multiplying – also crosswise, with coloured and struck-through factors – then multiply
+- **dividing**: multiply by the reciprocal (highlighted), then continue as for multiplying
+- **adding / subtracting**: resolve double signs, reduce the fractions first, find the common denominator as the
+  kgV (listing the multiples), expand both fractions (factors in colour), add or subtract the numerators, reduce the result
+- improper results also get the mixed number
+
+A fifth tab, **Gemischte Rechnungen**, takes longer calculations with any of the four operators and brackets, e.g.
+`1/2 + 1/3 · 3/4` or `2/3 · (1/4 + 1/2) - 1/6` (up to 8 operations). It first states the order rules that apply –
+brackets first (innermost first), multiplication and division before addition and subtraction, otherwise left to
+right – and then works through one sub-calculation at a time:
+
+- **Als Nächstes** marks the next sub-calculation in the whole calculation and says which rule makes it next
+- the sub-calculation is solved with the same steps as in the single-operation tabs
+- **Teilergebnis einsetzen** puts its result back into the calculation (marked), dropping brackets that are no longer
+  needed and applying a minus in front of brackets
 
 ## Terms and equations
 

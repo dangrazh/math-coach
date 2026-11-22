@@ -6,6 +6,8 @@ mod algebra;
 mod fraction;
 mod visual;
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -36,6 +38,11 @@ fn algebra_mode(mode: AlgebraMode) -> algebra::Mode {
         AlgebraMode::ReduceVariables => algebra::Mode::ReduceVariables,
         AlgebraMode::ExtendVariables => algebra::Mode::ExtendVariables,
         AlgebraMode::ReducePowers => algebra::Mode::ReducePowers,
+        AlgebraMode::Multiply => algebra::Mode::Multiply,
+        AlgebraMode::Divide => algebra::Mode::Divide,
+        AlgebraMode::Add => algebra::Mode::Add,
+        AlgebraMode::Subtract => algebra::Mode::Subtract,
+        AlgebraMode::Combined => algebra::Mode::Combined,
     }
 }
 
@@ -174,6 +181,14 @@ fn main() -> Result<(), slint::PlatformError> {
         solution(mode, &input, revealed)
     });
     ui.on_algebra_example(|mode, index| algebra::example(algebra_mode(mode), usize::try_from(index).unwrap_or(0)).into());
+
+    // All tabs share one step-by-step screen, which hands over each tab's input when switching.
+    let tabs: Rc<RefCell<HashMap<algebra::Mode, TabState>>> = Rc::default();
+    let saved = Rc::clone(&tabs);
+    ui.on_algebra_save(move |mode, state| {
+        saved.borrow_mut().insert(algebra_mode(mode), state);
+    });
+    ui.on_algebra_load(move |mode| tabs.borrow().get(&algebra_mode(mode)).cloned().unwrap_or_default());
 
     ui.run()
 }

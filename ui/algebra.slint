@@ -32,15 +32,13 @@ export struct Solution {
     message: string,
 }
 
-export enum AlgebraMode { simplify, expand, factor, solve, reduce, extend, reduce-variables, extend-variables, reduce-powers }
+export enum AlgebraMode { simplify, expand, factor, solve, reduce, extend, reduce-variables, extend-variables, reduce-powers, multiply, divide, add, subtract, combined }
 
-export component AlgebraTab inherits Button {
-    in property <AlgebraMode> value;
-    in-out property <AlgebraMode> current;
-    primary: self.current == self.value;
-    clicked => {
-        self.current = self.value;
-    }
+// What a tab keeps while another tab is shown.
+export struct TabState {
+    input: string,
+    revealed: int,
+    example-index: int,
 }
 
 component PieceView inherits Rectangle {
@@ -187,17 +185,36 @@ component StepCard inherits Rectangle {
     }
 }
 
-// Input field plus the growing list of solution steps; the same for all four modes.
+// Input field plus the growing list of solution steps; the same for all modes.
 export component AlgebraScreen inherits Rectangle {
-    in property <AlgebraMode> mode;
     in property <string> intro;
     in property <string> placeholder;
     callback solve(AlgebraMode, string, int) -> Solution;
     callback example(AlgebraMode, int) -> string;
+    // Keep and restore the state of each mode when switching (see `show`).
+    callback save-state(AlgebraMode, TabState);
+    callback load-state(AlgebraMode) -> TabState;
 
+    property <AlgebraMode> mode: AlgebraMode.simplify;
     property <int> revealed: 0;
     property <int> example-index: 0;
     property <Solution> solution;
+    property <TabState> loaded;
+
+    // Switches to another mode: stores this mode's input and restores the other one's.
+    public function show(mode: AlgebraMode) {
+        root.save-state(root.mode, { input: input.text, revealed: root.revealed, example-index: root.example-index });
+        root.mode = mode;
+        root.loaded = root.load-state(mode);
+        input.text = root.loaded.input;
+        root.revealed = root.loaded.revealed;
+        root.example-index = root.loaded.example-index;
+        if root.revealed > 0 {
+            root.refresh();
+        } else {
+            root.reset();
+        }
+    }
     property <bool> finished: root.revealed > 0 && root.solution.message == "" && root.revealed >= root.solution.total;
 
     function refresh() {

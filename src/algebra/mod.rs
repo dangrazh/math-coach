@@ -25,7 +25,7 @@ fn color_name(index: usize) -> &'static str {
     COLOR_NAMES[index % COLOR_COUNT]
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mode {
     Simplify,
     Expand,
@@ -38,6 +38,13 @@ pub enum Mode {
     ReduceVariables,
     ExtendVariables,
     ReducePowers,
+    /// Calculating with two fractions; the four modes only differ in their examples.
+    Multiply,
+    Divide,
+    Add,
+    Subtract,
+    /// Longer calculations with several operators and brackets.
+    Combined,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -130,6 +137,9 @@ pub enum AlgebraError {
     ExtendByZero,
     /// The target denominator (first) is no multiple of the denominator (second).
     NotAMultiple(String, String),
+    MissingOperator,
+    SlashBetweenFractions,
+    TooManyOperands,
 }
 
 impl fmt::Display for AlgebraError {
@@ -172,6 +182,11 @@ impl fmt::Display for AlgebraError {
             Self::NotAMultiple(target, denominator) => {
                 write!(f, "{target} ist kein Vielfaches von {denominator} – auf diesen Nenner kann man nicht erweitern.")
             }
+            Self::MissingOperator => f.write_str("Zwischen den beiden Zahlen fehlt das Rechenzeichen (·, :, + oder −), z. B. 2/3 + 1/4."),
+            Self::SlashBetweenFractions => f.write_str("Zum Teilen bitte : verwenden – der Schrägstrich / ist der Bruchstrich."),
+            Self::TooManyOperands => {
+                f.write_str("Bitte genau zwei Zahlen mit einem Rechenzeichen eingeben, z. B. 2/3 · 3/4. Längere Rechnungen gehen im Tab «Gemischte Rechnungen».")
+            }
         }
     }
 }
@@ -189,6 +204,8 @@ pub fn steps(mode: Mode, input: &str) -> Result<Vec<Step>, AlgebraError> {
         Mode::ReducePowers => fractions::reduce_steps(input, fractions::Style::Powers),
         Mode::Extend => fractions::extend_steps(input, false),
         Mode::ExtendVariables => fractions::extend_steps(input, true),
+        Mode::Multiply | Mode::Divide | Mode::Add | Mode::Subtract => fractions::arithmetic_steps(input),
+        Mode::Combined => fractions::combined_steps(input),
     }
 }
 
@@ -245,6 +262,19 @@ const EXTEND_VARIABLES_EXAMPLES: &[&str] =
     &["2a/3b mit 4a", "x/y auf xy²", "3/(4x) auf 12x²y", "x/(x + 1) mit (x - 1)", "1/(x - 2) auf x² - 4"];
 const REDUCE_POWERS_EXAMPLES: &[&str] =
     &["x⁵/x³", "a⁴b²/(a²b⁵)", "15x⁷y³/(25x⁴y⁵)", "-12m³n⁶/(18m³n²)", "(x + 1)⁵/(x + 1)²", "8a²b/(12a⁴b)"];
+const MULTIPLY_EXAMPLES: &[&str] = &["2/3 · 3/4", "4/9 · 15/8", "3 · 2/5", "-5/6 · 3/10", "1 1/2 · 2/3"];
+const DIVIDE_EXAMPLES: &[&str] = &["3/4 : 1/2", "2/3 : 4", "5/8 : 15/16", "-7/10 : 14/15", "2 1/4 : 3/8"];
+const ADD_EXAMPLES: &[&str] = &["3/8 + 1/8", "1/4 + 2/3", "5/6 + 3/4", "2/4 + 1/6", "1 1/2 + 2/3", "-1/3 + 1/2"];
+const COMBINED_EXAMPLES: &[&str] = &[
+    "1/2 + 1/3 · 3/4",
+    "(1/2 + 1/3) · 3/5",
+    "3/4 - 1/2 : 2",
+    "2/3 · (1/4 + 1/2) - 1/6",
+    "(5/6 - 1/3) : (1/4 + 1/8)",
+    "1 1/2 + 3/4 · 2 - 1/3",
+    "-(1/2 - 1/3) · 6",
+];
+const SUBTRACT_EXAMPLES: &[&str] = &["5/8 - 3/8", "3/4 - 1/6", "1/3 - 3/4", "2 - 3/5", "1/2 - (-1/3)"];
 
 /// The `index`-th example for a mode (wrapping around).
 pub fn example(mode: Mode, index: usize) -> &'static str {
@@ -258,6 +288,11 @@ pub fn example(mode: Mode, index: usize) -> &'static str {
         Mode::ReduceVariables => REDUCE_VARIABLES_EXAMPLES,
         Mode::ExtendVariables => EXTEND_VARIABLES_EXAMPLES,
         Mode::ReducePowers => REDUCE_POWERS_EXAMPLES,
+        Mode::Multiply => MULTIPLY_EXAMPLES,
+        Mode::Divide => DIVIDE_EXAMPLES,
+        Mode::Add => ADD_EXAMPLES,
+        Mode::Subtract => SUBTRACT_EXAMPLES,
+        Mode::Combined => COMBINED_EXAMPLES,
     };
     list[index % list.len()]
 }
@@ -267,7 +302,12 @@ mod tests {
     use super::tree::line_text;
     use super::*;
 
-    const MODES: [Mode; 9] = [
+    const MODES: [Mode; 14] = [
+        Mode::Combined,
+        Mode::Multiply,
+        Mode::Divide,
+        Mode::Add,
+        Mode::Subtract,
         Mode::Simplify,
         Mode::Expand,
         Mode::Factor,
