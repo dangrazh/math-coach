@@ -275,8 +275,8 @@ export component AppWindow inherits Window {
         {
             label: "Gemischte Rechnungen",
             mode: AlgebraMode.combined,
-            intro: "Längere Rechnungen mit +, −, · und : und Klammern. Der Coach rechnet eine Teilrechnung nach der anderen – in der richtigen Reihenfolge: Klammern zuerst, Punkt vor Strich, sonst von links nach rechts.",
-            placeholder: "z. B. 1/2 + 1/3 · 3/4  oder  (1/2 + 1/3) : 5/6",
+            intro: "Längere Rechnungen mit +, −, · und : und Klammern – auch mit Variablen wie 1/x + 1/y oder 2a/3b · 9b/4a (2a/3b heisst 2a geteilt durch 3b). Der Coach rechnet eine Teilrechnung nach der anderen: Klammern zuerst, Punkt vor Strich, sonst von links nach rechts.",
+            placeholder: "z. B. 1/2 + 1/3 · 3/4  oder  1/x + 1/(x + 1)",
         },
     ];
     // 0 = Terme & Gleichungen, 1 = Kürzen & Erweitern, 2 = Rechnen mit Brüchen.

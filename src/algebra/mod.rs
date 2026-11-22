@@ -273,6 +273,15 @@ const COMBINED_EXAMPLES: &[&str] = &[
     "(5/6 - 1/3) : (1/4 + 1/8)",
     "1 1/2 + 3/4 · 2 - 1/3",
     "-(1/2 - 1/3) · 6",
+    "x/2 + x/3",
+    "2a/3b · 9b/4a",
+    "1/x + 1/y",
+    "(x + 1)/2 - (x - 1)/3",
+    "(x² - 9)/(x + 3) · 2/(x - 3)",
+    "1/(x - 1) - 1/(x + 1)",
+    "4x/(x + 1) : 2x/(x + 1)²",
+    "(1/x + 1/y) · xy",
+    "x/2 + x/3 · 3/x",
 ];
 const SUBTRACT_EXAMPLES: &[&str] = &["5/8 - 3/8", "3/4 - 1/6", "1/3 - 3/4", "2 - 3/5", "1/2 - (-1/3)"];
 
@@ -322,7 +331,7 @@ mod tests {
     #[test]
     fn every_example_works() {
         for mode in MODES {
-            for index in 0..10 {
+            for index in 0..20 {
                 let input = example(mode, index);
                 let steps = steps(mode, input).unwrap_or_else(|e| panic!("{input}: {e}"));
                 assert!(!steps.is_empty(), "{input}");

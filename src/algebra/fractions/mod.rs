@@ -272,6 +272,13 @@ impl Factored {
         Ok(out)
     }
 
+    /// A multiplied-out sum in factored form, e.g. `x² − 1 = (x + 1)(x − 1)`.
+    fn from_terms(terms: &[Mono]) -> Result<Self, AlgebraError> {
+        let mut out = Self { part: Part::one(), notes: Vec::new(), negative_content: false };
+        out.factor_sum(&Sum::from_terms(terms.to_vec()), 1)?;
+        Ok(out)
+    }
+
     /// Multiplies `sum^power` into the part: common factor out, then binomial formulas.
     fn factor_sum(&mut self, sum: &Sum, power: u32) -> Result<(), AlgebraError> {
         let terms = normalized(sum.clone())?;

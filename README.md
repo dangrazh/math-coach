@@ -82,6 +82,17 @@ right – and then works through one sub-calculation at a time:
 - **Teilergebnis einsetzen** puts its result back into the calculation (marked), dropping brackets that are no longer
   needed and applying a minus in front of brackets
 
+The same tab also calculates with **variables**, e.g. `x/2 + x/3`, `2a/3b · 9b/4a`, `1/(x - 1) - 1/(x + 1)` or
+`(1/x + 1/y) · xy`. Everything written next to each other belongs to the numerator or denominator (`2a/3b` is 2a
+divided by 3b); sums need brackets (`(x + 1)/2`). Numerators and denominators are factored first (common factor,
+binomial formulas), because only factors may be cancelled:
+
+- **multiplying / dividing**: reciprocal, sign, one fraction bar with every factor on its own, cancel numbers,
+  variables and whole brackets – also crosswise, coloured and struck through – then combine what is left
+- **adding / subtracting**: cancel each fraction first, build the common denominator from the factors of both
+  denominators (each with its highest exponent), expand both fractions and multiply out the numerators, add or
+  subtract the numerators (minus in front of a bracket flips its signs), factor the new numerator and cancel the result
+
 ## Terms and equations
 
 Four tabs share the same layout: type a term (or an equation) into the input field and press **Los geht's** /

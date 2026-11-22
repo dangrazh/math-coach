@@ -1,0 +1,1 @@
+Copy-Item -LiteralPath "C:\LocalData\Rust\math-coach\target\release\math-coach.exe" -Destination "P:\Leonie\Schule\Mathe\mathe-coach\math-coach.exe" -Force
